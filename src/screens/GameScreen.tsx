@@ -14,6 +14,7 @@ interface GameScreenProps {
   settings: AppSettings;
   isDaily?: boolean;
   dailySeed?: string;
+  initialRound?: number;
   onGameOver: (result: GameRunResult) => void;
   onGoHome?: () => void;
 }
@@ -22,12 +23,14 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   settings,
   isDaily = false,
   dailySeed,
+  initialRound = 0,
   onGameOver,
   onGoHome,
 }) => {
   const { state, handleObjectTap, handleBackgroundTap, pause, resume, restart, getRunResult } = useGameEngine(
     isDaily,
-    dailySeed
+    dailySeed,
+    initialRound
   );
 
   const [showPauseMenu, setShowPauseMenu] = useState(false);

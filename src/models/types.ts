@@ -131,7 +131,8 @@ export type ScreenName =
   | 'settings'
   | 'shop'
   | 'privacy_terms'
-  | 'how_to_play';
+  | 'how_to_play'
+  | 'admin';
 
 export interface GameRunResult {
   score: number;

@@ -19,6 +19,7 @@ import { SettingsScreen } from './screens/SettingsScreen';
 import { ShopScreen } from './screens/ShopScreen';
 import { HowToPlayScreen } from './screens/HowToPlayScreen';
 import { PrivacyTermsScreen } from './screens/PrivacyTermsScreen';
+import { AdminScreen } from './screens/AdminScreen';
 
 export function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenName>('splash');
@@ -28,6 +29,7 @@ export function App() {
   const [lastGameResult, setLastGameResult] = useState<GameRunResult | null>(null);
   const [isDailyGame, setIsDailyGame] = useState(false);
   const [dailySeed, setDailySeed] = useState<string | undefined>(undefined);
+  const [startingLevel, setStartingLevel] = useState<number>(0);
 
   useEffect(() => {
     soundEngine.setSoundEnabled(settings.soundEnabled);
@@ -37,7 +39,6 @@ export function App() {
 
   // First screen after splash is Login / Registration
   const handleSplashFinish = () => {
-    // If not authenticated with phone, show Login / Registration screen first
     if (user.isGuest || !user.phoneVerified) {
       setCurrentScreen('welcome');
     } else if (!StorageService.isOnboardingCompleted()) {
@@ -61,15 +62,17 @@ export function App() {
     setCurrentScreen('home');
   };
 
-  const handleStartGame = () => {
+  const handleStartGame = (lvl = 0) => {
     setIsDailyGame(false);
     setDailySeed(undefined);
+    setStartingLevel(lvl);
     setCurrentScreen('game');
   };
 
   const handleStartDaily = (seed: string) => {
     setIsDailyGame(true);
     setDailySeed(seed);
+    setStartingLevel(0);
     setCurrentScreen('game');
   };
 
@@ -87,16 +90,19 @@ export function App() {
 
   return (
     <div
-      className={`w-full h-full min-h-screen bg-gradient-to-b ${activeTheme.bgGradient} flex flex-col items-center justify-center font-sans overflow-hidden`}
+      className={`app-container min-h-screen w-full flex flex-col items-center justify-center font-sans ${activeTheme.bgGradient}`}
+      style={{
+        backgroundColor: '#0A0E17',
+      }}
     >
-      <div className="w-full h-full max-w-md flex flex-col relative">
+      <div className="w-full max-w-md min-h-screen flex flex-col relative overflow-hidden shadow-2xl bg-[#0A0E17]">
         {currentScreen === 'splash' && (
           <SplashScreen onFinish={handleSplashFinish} />
         )}
 
-        {currentScreen === 'welcome' && (
+        {(currentScreen === 'welcome' || currentScreen === 'login' || currentScreen === 'signup') && (
           <AuthScreen
-            onLoginSuccess={(u) => handleAuthComplete(u)}
+            onLoginSuccess={handleAuthComplete}
             onContinueAsGuest={() => {
               const guest = AuthService.continueAsGuest();
               handleAuthComplete(guest);
@@ -114,7 +120,7 @@ export function App() {
             user={user}
             stats={stats}
             onNavigate={(screen) => setCurrentScreen(screen)}
-            onStartGame={handleStartGame}
+            onStartGame={() => handleStartGame(0)}
           />
         )}
 
@@ -123,6 +129,7 @@ export function App() {
             settings={settings}
             isDaily={isDailyGame}
             dailySeed={dailySeed}
+            initialRound={startingLevel}
             onGameOver={handleGameOver}
             onGoHome={() => setCurrentScreen('home')}
           />
@@ -131,7 +138,7 @@ export function App() {
         {currentScreen === 'game_over' && lastGameResult && (
           <GameOverScreen
             result={lastGameResult}
-            onRetry={handleStartGame}
+            onRetry={() => handleStartGame(0)}
             onContinueWithAd={handleContinueWithAd}
             onGoHome={() => setCurrentScreen('home')}
           />
@@ -161,7 +168,7 @@ export function App() {
         {currentScreen === 'statistics' && (
           <StatisticsScreen
             stats={stats}
-            onPlayGame={handleStartGame}
+            onPlayGame={() => handleStartGame(0)}
             onBack={() => setCurrentScreen('home')}
           />
         )}
@@ -187,13 +194,20 @@ export function App() {
 
         {currentScreen === 'how_to_play' && (
           <HowToPlayScreen
-            onPlayGame={handleStartGame}
+            onPlayGame={() => handleStartGame(0)}
             onBack={() => setCurrentScreen('home')}
           />
         )}
 
         {currentScreen === 'privacy_terms' && (
           <PrivacyTermsScreen onBack={() => setCurrentScreen('welcome')} />
+        )}
+
+        {currentScreen === 'admin' && (
+          <AdminScreen
+            onNavigate={(screen) => setCurrentScreen(screen)}
+            onLaunchLevel={(lvl) => handleStartGame(lvl)}
+          />
         )}
       </div>
     </div>

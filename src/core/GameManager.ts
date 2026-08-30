@@ -80,7 +80,7 @@ export class GameManager {
     }
   }
 
-  public start() {
+  public start(initialRound = 0) {
     this.currentSessionId++;
     this.antiRepetition.reset();
     this.isProcessingTap = false;
@@ -88,7 +88,7 @@ export class GameManager {
 
     this.state = {
       ...this.state,
-      round: 0,
+      round: Math.max(0, initialRound - 1),
       score: 0,
       bestScore: this.state.isDaily ? stats.dailyBest : stats.bestScore,
       combo: 0,

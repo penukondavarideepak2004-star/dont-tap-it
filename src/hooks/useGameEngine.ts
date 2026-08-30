@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { soundEngine } from '../audio/SoundEngine';
 import { GameManager, GameState } from '../core/GameManager';
 
-export function useGameEngine(isDaily = false, dailySeed?: string) {
+export function useGameEngine(isDaily = false, dailySeed?: string, initialRound = 0) {
   const managerRef = useRef<GameManager | null>(null);
   if (!managerRef.current) {
     managerRef.current = new GameManager(isDaily, dailySeed);
@@ -11,7 +11,7 @@ export function useGameEngine(isDaily = false, dailySeed?: string) {
   const manager = managerRef.current;
   const [state, setState] = useState<GameState>(() => ({
     currentChallenge: null,
-    round: 0,
+    round: initialRound > 0 ? initialRound : 0,
     score: 0,
     bestScore: 0,
     combo: 0,
@@ -43,12 +43,12 @@ export function useGameEngine(isDaily = false, dailySeed?: string) {
     manager.subscribe((newState) => {
       setState(newState);
     });
-    manager.start();
+    manager.start(initialRound);
 
     return () => {
       manager.destroy();
     };
-  }, [manager]);
+  }, [manager, initialRound]);
 
   // High-performance, rock-solid 60fps single-threaded animation loop
   useEffect(() => {
