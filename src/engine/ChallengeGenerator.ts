@@ -5,12 +5,12 @@ import {
   GameObject,
 } from '../models/types';
 import {
-  CATEGORIES_CONFIG,
   COLOR_KEYS,
   GAME_COLORS,
   GEOMETRIC_SHAPES,
   RAINBOW_COLORS,
   SHAPE_DISPLAY_NAMES,
+  getQuestionsCountForLevel,
 } from '../utils/constants';
 import { RandomUtil, SeededRandom } from '../utils/random';
 import { ChallengeValidator } from './ChallengeValidator';
@@ -47,7 +47,7 @@ export class ChallengeGenerator {
       challenge.category = category;
       challenge.level = level;
       challenge.questionIndex = questionIndex;
-      challenge.totalQuestions = CATEGORIES_CONFIG[category]?.questionsPerLevel || 1;
+      challenge.totalQuestions = getQuestionsCountForLevel(category, level);
 
       if (ChallengeValidator.validate(challenge)) {
         return challenge;
@@ -707,7 +707,7 @@ export class ChallengeGenerator {
       category,
       level,
       questionIndex,
-      totalQuestions: CATEGORIES_CONFIG[category]?.questionsPerLevel || 1,
+      totalQuestions: getQuestionsCountForLevel(category, level),
       instruction: 'TAP THE RED OBJECT',
       subInstruction: 'Tap the red circle',
       highlightColor: '#FF2E63',

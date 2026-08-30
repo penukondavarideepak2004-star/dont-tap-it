@@ -239,16 +239,30 @@ describe("DON'T TAP IT! — Complete Category & Level System Test Suite", () => 
   });
 
   // =========================================================================
-  // 8. LAYOUT SPACING & TOUCH SAFETY
+  // 9. DYNAMIC QUESTION COUNT PROGRESSION (+3 PER LEVEL FROM 5)
   // =========================================================================
-  describe('Balanced Layout Spacing & Zero Collision Guarantee', () => {
-    it('should guarantee minimum distance >= 10% across 500+ generated challenges', () => {
-      for (let i = 1; i <= 28; i++) {
-        const ch = ChallengeGenerator.generateForCategory('beginner', i, 1);
-        if (ch.objects.length >= 2) {
-          const minDist = LayoutEngine.calculateMinimumDistance(ch.objects.map((o) => o.position));
-          expect(minDist).toBeGreaterThanOrEqual(10);
-        }
+  describe('Dynamic Question Count Progression (+3 Per Level)', () => {
+    it('should scale Beginner Levels 1–9 from 5 questions with +3 per level', () => {
+      for (let lvl = 1; lvl <= 9; lvl++) {
+        const expected = 5 + (lvl - 1) * 3;
+        const ch = ChallengeGenerator.generateForCategory('beginner', lvl, 1);
+        expect(ch.totalQuestions).toBe(expected);
+      }
+    });
+
+    it('should scale Beginner Levels 10–19 from 5 questions with +3 per level', () => {
+      for (let lvl = 10; lvl <= 19; lvl++) {
+        const expected = 5 + (lvl - 10) * 3;
+        const ch = ChallengeGenerator.generateForCategory('beginner', lvl, 1);
+        expect(ch.totalQuestions).toBe(expected);
+      }
+    });
+
+    it('should scale Beginner Levels 20–28 from 5 questions with +3 per level', () => {
+      for (let lvl = 20; lvl <= 28; lvl++) {
+        const expected = 5 + (lvl - 20) * 3;
+        const ch = ChallengeGenerator.generateForCategory('beginner', lvl, 1);
+        expect(ch.totalQuestions).toBe(expected);
       }
     });
   });

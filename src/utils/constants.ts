@@ -165,6 +165,33 @@ export const SHAPE_DISPLAY_NAMES: Record<ShapeType, string> = {
   heart: 'HEART',
 };
 
+/**
+ * Calculates the exact question count for any level across all categories:
+ * - Beginner 1–9: Level 1 starts with 5 questions, increases by 3 per level (5, 8, 11, 14...)
+ * - Beginner 10–19: Level 10 starts with 5 questions, increases by 3 per level (5, 8, 11, 14...)
+ * - Beginner 20–28: Level 20 starts with 5 questions, increases by 3 per level (5, 8, 11, 14...)
+ * - Genius 1–14: 10 rapid-fire questions per level
+ * - Extreme Genius 1–6: 15 rapid-fire questions per level
+ */
+export function getQuestionsCountForLevel(category: CategoryId, level: number): number {
+  if (category === 'beginner') {
+    if (level <= 9) {
+      return 5 + (level - 1) * 3;
+    } else if (level <= 19) {
+      return 5 + (level - 10) * 3;
+    } else {
+      return 5 + (level - 20) * 3;
+    }
+  }
+  if (category === 'genius') {
+    return 10;
+  }
+  if (category === 'extreme') {
+    return 15;
+  }
+  return 5;
+}
+
 export const CATEGORIES_CONFIG: Record<CategoryId, CategoryDefinition> = {
   beginner: {
     id: 'beginner',
@@ -172,7 +199,7 @@ export const CATEGORIES_CONFIG: Record<CategoryId, CategoryDefinition> = {
     subtitle: 'Learn the basics',
     description: 'Learn the basics',
     totalLevels: 28,
-    questionsPerLevel: 1,
+    questionsPerLevel: 5,
     badge: 'Levels 1–28',
     accentColor: '#25E68C',
     bgGradient: 'from-emerald-500/20 via-teal-500/10 to-transparent',

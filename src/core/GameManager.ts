@@ -6,7 +6,7 @@ import { ScoreManager } from '../engine/ScoreManager';
 import { CategoryId, Challenge, GameRunResult } from '../models/types';
 import { analytics } from '../services/AnalyticsService';
 import { StorageService } from '../services/StorageService';
-import { CATEGORIES_CONFIG } from '../utils/constants';
+import { getQuestionsCountForLevel } from '../utils/constants';
 
 export type GameLifecycleState =
   | 'IDLE'
@@ -63,7 +63,7 @@ export class GameManager {
     const stats = StorageService.loadStats();
     this.dailySeed = dailySeed;
     this.currentSessionId = 1;
-    const totalQuestions = CATEGORIES_CONFIG[category]?.questionsPerLevel || 1;
+    const totalQuestions = getQuestionsCountForLevel(category, level);
 
     this.state = {
       currentChallenge: null,
@@ -114,7 +114,7 @@ export class GameManager {
     this.antiRepetition.reset();
     this.isProcessingTap = false;
     const stats = StorageService.loadStats();
-    const totalQuestions = CATEGORIES_CONFIG[category]?.questionsPerLevel || 1;
+    const totalQuestions = getQuestionsCountForLevel(category, level);
 
     this.state = {
       ...this.state,

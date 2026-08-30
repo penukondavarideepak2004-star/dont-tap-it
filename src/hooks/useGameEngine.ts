@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { soundEngine } from '../audio/SoundEngine';
 import { GameManager, GameState } from '../core/GameManager';
 import { CategoryId } from '../models/types';
-import { CATEGORIES_CONFIG } from '../utils/constants';
+import { getQuestionsCountForLevel } from '../utils/constants';
 
 export function useGameEngine(
   isDaily = false,
@@ -16,7 +16,7 @@ export function useGameEngine(
   }
 
   const manager = managerRef.current;
-  const totalQuestions = CATEGORIES_CONFIG[category]?.questionsPerLevel || 1;
+  const totalQuestions = getQuestionsCountForLevel(category, level);
 
   const [state, setState] = useState<GameState>(() => ({
     currentChallenge: null,
