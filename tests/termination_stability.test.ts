@@ -180,4 +180,42 @@ describe("DON'T TOUCH — Critical Unexpected Game Termination & Lifecycle Stabi
     expect(state2.isGameOver).toBe(false);
     expect(state2.round).toBe(1);
   });
+
+  it('Test K: Timer continues to tick and function reliably across 50 consecutive Level-Complete and Retry transitions', () => {
+    const manager = new GameManager();
+
+    for (let cycle = 1; cycle <= 50; cycle++) {
+      manager.start('beginner', 1, 1);
+      let state = (manager as unknown as { state: { timeRemaining: number; timeLimit: number; lifecycleState: string; isGameOver: boolean; isLevelComplete: boolean } }).state;
+
+      expect(state.lifecycleState).toBe('PLAYING');
+      expect(state.isGameOver).toBe(false);
+      expect(state.isLevelComplete).toBe(false);
+      expect(state.timeRemaining).toBe(state.timeLimit);
+
+      // Verify timer ticks down properly
+      manager.updateTimer(0.5);
+      expect(state.timeRemaining).toBeCloseTo(state.timeLimit - 0.5, 2);
+
+      // Trigger level complete
+      const ch = (manager as unknown as { state: { currentChallenge: { validTargetIds: string[] }; totalQuestions: number; questionIndex: number } }).state;
+      for (let q = 1; q <= ch.totalQuestions; q++) {
+        const currentTarget = (manager as unknown as { state: { currentChallenge: { validTargetIds: string[] } } }).state.currentChallenge.validTargetIds[0];
+        manager.handleObjectTap(currentTarget);
+      }
+      state = (manager as unknown as { state: { timeRemaining: number; timeLimit: number; lifecycleState: string; isGameOver: boolean; isLevelComplete: boolean } }).state;
+      expect(state.isLevelComplete).toBe(true);
+
+      // Next level / Retry
+      manager.start('beginner', 2, 1);
+      state = (manager as unknown as { state: { timeRemaining: number; timeLimit: number; lifecycleState: string; isGameOver: boolean; isLevelComplete: boolean } }).state;
+      expect(state.lifecycleState).toBe('PLAYING');
+      expect(state.isLevelComplete).toBe(false);
+      expect(state.timeRemaining).toBe(state.timeLimit);
+
+      // Verify timer ticks down properly on new level
+      manager.updateTimer(0.3);
+      expect(state.timeRemaining).toBeCloseTo(state.timeLimit - 0.3, 2);
+    }
+  });
 });

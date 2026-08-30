@@ -7,16 +7,16 @@ import { getQuestionsCountForLevel } from '../utils/constants';
 export function useGameEngine(
   isDaily = false,
   dailySeed?: string,
-  category: CategoryId = 'beginner',
-  level = 1
+  initialCategory: CategoryId = 'beginner',
+  initialLevel = 1
 ) {
   const managerRef = useRef<GameManager | null>(null);
   if (!managerRef.current) {
-    managerRef.current = new GameManager(isDaily, dailySeed, category, level);
+    managerRef.current = new GameManager(isDaily, dailySeed, initialCategory, initialLevel);
   }
 
   const manager = managerRef.current;
-  const totalQuestions = getQuestionsCountForLevel(category, level);
+  const initialTotalQuestions = getQuestionsCountForLevel(initialCategory, initialLevel);
 
   const [state, setState] = useState<GameState>(() => ({
     currentChallenge: null,
@@ -33,10 +33,10 @@ export function useGameEngine(
     isNewBest: false,
     hasContinuedWithAd: false,
     isDaily,
-    category,
-    level,
+    category: initialCategory,
+    level: initialLevel,
     questionIndex: 1,
-    totalQuestions,
+    totalQuestions: initialTotalQuestions,
     totalReactionMs: 0,
     correctAnswersInRun: 0,
     wrongAnswersInRun: 0,
@@ -52,22 +52,24 @@ export function useGameEngine(
   const lastTickRef = useRef<number>(performance.now());
   const warnTickTriggeredRef = useRef<boolean>(false);
 
-  // Subscribe to state updates and start game session
+  // Initialize and subscribe to manager
   useEffect(() => {
     manager.subscribe((newState) => {
       setState(newState);
     });
-    manager.start(category, level, 1);
+    lastTickRef.current = performance.now();
+    manager.start(initialCategory, initialLevel, 1);
 
     return () => {
       manager.destroy();
     };
-  }, [manager, category, level]);
+  }, [manager]);
 
-  // High-performance single-threaded animation loop
+  // Indestructible continuous game loop
   useEffect(() => {
     let animFrameId: number;
     let isLoopRunning = true;
+    lastTickRef.current = performance.now();
 
     const loop = (now: number) => {
       if (!isLoopRunning) return;
@@ -76,19 +78,19 @@ export function useGameEngine(
       const deltaSec = (now - lastTickRef.current) / 1000;
       lastTickRef.current = now;
 
-      // Only update active timer during PLAYING state
+      // Update timer when in active PLAYING state
       if (
         !currentState.isPaused &&
         !currentState.isGameOver &&
         !currentState.isLevelComplete &&
         currentState.lifecycleState === 'PLAYING'
       ) {
-        if (deltaSec > 0 && deltaSec < 0.25) {
+        if (deltaSec > 0 && deltaSec < 0.5) {
           manager.updateTimer(deltaSec);
         }
 
-        // Audio countdown warning in final 0.5 seconds
-        if (currentState.timeRemaining <= 0.5 && currentState.timeRemaining > 0) {
+        // Countdown audio cue in the last 0.8s
+        if (currentState.timeRemaining <= 0.8 && currentState.timeRemaining > 0) {
           if (!warnTickTriggeredRef.current) {
             warnTickTriggeredRef.current = true;
             soundEngine.playCountdownTick();
@@ -98,16 +100,10 @@ export function useGameEngine(
         }
       }
 
-      if (
-        !currentState.isGameOver &&
-        !currentState.isLevelComplete &&
-        currentState.lifecycleState !== 'DESTROYED'
-      ) {
-        animFrameId = requestAnimationFrame(loop);
-      }
+      // Keep animation frame loop alive continuously across all states
+      animFrameId = requestAnimationFrame(loop);
     };
 
-    lastTickRef.current = performance.now();
     animFrameId = requestAnimationFrame(loop);
 
     return () => {
@@ -136,19 +132,22 @@ export function useGameEngine(
 
   const resume = useCallback(() => {
     lastTickRef.current = performance.now();
+    warnTickTriggeredRef.current = false;
     manager.resume();
   }, [manager]);
 
   const restart = useCallback(
-    (cat: CategoryId = category, lvl: number = level) => {
+    (cat: CategoryId = stateRef.current.category, lvl: number = stateRef.current.level) => {
       lastTickRef.current = performance.now();
+      warnTickTriggeredRef.current = false;
       manager.start(cat, lvl, 1);
     },
-    [manager, category, level]
+    [manager]
   );
 
   const continueRun = useCallback(() => {
     lastTickRef.current = performance.now();
+    warnTickTriggeredRef.current = false;
     return manager.continueRun();
   }, [manager]);
 
