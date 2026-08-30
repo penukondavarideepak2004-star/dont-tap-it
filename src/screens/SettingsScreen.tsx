@@ -268,22 +268,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               <span>Privacy Policy & Terms</span>
             </div>
           </button>
-
-          <div className="h-px bg-white/5 my-1" />
-
-          {/* ADMIN & DEVELOPER LEVEL INSPECTOR */}
-          <button
-            onClick={() => onNavigate('admin')}
-            className="flex items-center justify-between w-full py-2 text-sm font-semibold text-cyan-400 hover:text-cyan-300 transition-colors"
-          >
-            <div className="flex items-center gap-2.5">
-              <Shield className="w-4 h-4 text-cyan-400" />
-              <span>Admin Level Inspector</span>
-            </div>
-            <span className="text-[10px] uppercase font-black tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30">
-              Dev
-            </span>
-          </button>
         </div>
 
         <div className="text-center text-xs text-gray-600 font-medium py-2">

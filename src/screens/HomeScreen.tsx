@@ -19,19 +19,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 }) => {
   const coins = StorageService.loadCoins();
 
-  const [adminTapCount, setAdminTapCount] = React.useState(0);
-
-  const handleLogoTap = () => {
-    const next = adminTapCount + 1;
-    if (next >= 3) {
-      setAdminTapCount(0);
-      onNavigate('admin');
-    } else {
-      setAdminTapCount(next);
-      setTimeout(() => setAdminTapCount(0), 1500);
-    }
-  };
-
   return (
     <div className="min-h-screen w-full bg-[#0A0E17] flex flex-col justify-between p-6 text-white select-none relative overflow-hidden">
       <div className="absolute w-96 h-96 rounded-full bg-cyan-500/10 blur-3xl -top-20 -right-20 pointer-events-none" />
@@ -70,10 +57,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       {/* Mascot & Title */}
       <div className="flex flex-col items-center justify-center text-center my-auto z-10">
         <div className="relative mb-3">
-          <div
-            onClick={handleLogoTap}
-            className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-cyan-500 to-[#00F0FF] flex items-center justify-center shadow-lg shadow-cyan-500/20 rotate-3 animate-float cursor-pointer active:scale-95 transition-transform"
-          >
+          <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-cyan-500 to-[#00F0FF] flex items-center justify-center shadow-lg shadow-cyan-500/20 rotate-3 animate-float">
             <Zap className="w-10 h-10 text-black fill-black" />
           </div>
         </div>

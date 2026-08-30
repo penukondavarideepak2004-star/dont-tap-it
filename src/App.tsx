@@ -19,7 +19,6 @@ import { SettingsScreen } from './screens/SettingsScreen';
 import { ShopScreen } from './screens/ShopScreen';
 import { HowToPlayScreen } from './screens/HowToPlayScreen';
 import { PrivacyTermsScreen } from './screens/PrivacyTermsScreen';
-import { AdminScreen } from './screens/AdminScreen';
 
 export function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenName>('splash');
@@ -29,7 +28,6 @@ export function App() {
   const [lastGameResult, setLastGameResult] = useState<GameRunResult | null>(null);
   const [isDailyGame, setIsDailyGame] = useState(false);
   const [dailySeed, setDailySeed] = useState<string | undefined>(undefined);
-  const [startingLevel, setStartingLevel] = useState<number>(0);
 
   useEffect(() => {
     soundEngine.setSoundEnabled(settings.soundEnabled);
@@ -62,17 +60,15 @@ export function App() {
     setCurrentScreen('home');
   };
 
-  const handleStartGame = (lvl = 0) => {
+  const handleStartGame = () => {
     setIsDailyGame(false);
     setDailySeed(undefined);
-    setStartingLevel(lvl);
     setCurrentScreen('game');
   };
 
   const handleStartDaily = (seed: string) => {
     setIsDailyGame(true);
     setDailySeed(seed);
-    setStartingLevel(0);
     setCurrentScreen('game');
   };
 
@@ -120,7 +116,7 @@ export function App() {
             user={user}
             stats={stats}
             onNavigate={(screen) => setCurrentScreen(screen)}
-            onStartGame={() => handleStartGame(0)}
+            onStartGame={handleStartGame}
           />
         )}
 
@@ -129,7 +125,6 @@ export function App() {
             settings={settings}
             isDaily={isDailyGame}
             dailySeed={dailySeed}
-            initialRound={startingLevel}
             onGameOver={handleGameOver}
             onGoHome={() => setCurrentScreen('home')}
           />
@@ -138,7 +133,7 @@ export function App() {
         {currentScreen === 'game_over' && lastGameResult && (
           <GameOverScreen
             result={lastGameResult}
-            onRetry={() => handleStartGame(0)}
+            onRetry={handleStartGame}
             onContinueWithAd={handleContinueWithAd}
             onGoHome={() => setCurrentScreen('home')}
           />
@@ -168,7 +163,7 @@ export function App() {
         {currentScreen === 'statistics' && (
           <StatisticsScreen
             stats={stats}
-            onPlayGame={() => handleStartGame(0)}
+            onPlayGame={handleStartGame}
             onBack={() => setCurrentScreen('home')}
           />
         )}
@@ -194,20 +189,13 @@ export function App() {
 
         {currentScreen === 'how_to_play' && (
           <HowToPlayScreen
-            onPlayGame={() => handleStartGame(0)}
+            onPlayGame={handleStartGame}
             onBack={() => setCurrentScreen('home')}
           />
         )}
 
         {currentScreen === 'privacy_terms' && (
           <PrivacyTermsScreen onBack={() => setCurrentScreen('welcome')} />
-        )}
-
-        {currentScreen === 'admin' && (
-          <AdminScreen
-            onNavigate={(screen) => setCurrentScreen(screen)}
-            onLaunchLevel={(lvl) => handleStartGame(lvl)}
-          />
         )}
       </div>
     </div>
