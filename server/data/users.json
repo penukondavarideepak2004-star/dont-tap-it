@@ -1,0 +1,13 @@
+[
+  {
+    "userId": "usr_initial",
+    "firstName": "Existing",
+    "phoneNumber": "+919876543210",
+    "email": "existing@example.com",
+    "age": 30,
+    "phoneVerified": true,
+    "createdAt": "2026-08-30T16:26:58.089Z",
+    "lastLoginAt": "2026-08-30T16:26:58.089Z",
+    "platform": "web"
+  }
+]
