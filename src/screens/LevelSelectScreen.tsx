@@ -19,16 +19,6 @@ export const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({
   const progress = StorageService.getCategoryProgress(category);
   const totalLevels = config.totalLevels;
 
-  const getCurriculumSubtitle = () => {
-    if (category === 'beginner') {
-      return '1–9: Colors • 10–19: Shapes • 20–21: Intro • 22–28: Positions';
-    }
-    if (category === 'genius') {
-      return '10 Rapid-Fire Questions • Mixed Colors, Shapes & Positions';
-    }
-    return '15 Rapid-Fire Questions • Identify Visual Shapes from Word Choices';
-  };
-
   return (
     <div className="min-h-screen w-full bg-[#0A0E17] flex flex-col justify-between p-6 text-white select-none relative overflow-hidden">
       {/* Glow flares */}
@@ -56,8 +46,8 @@ export const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({
         <h1 className="text-2xl sm:text-3xl font-black font-display tracking-tight text-white mb-1">
           SELECT <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-[#00F0FF]">LEVEL</span>
         </h1>
-        <p className="text-[11px] font-semibold text-gray-400 max-w-xs mx-auto">
-          {getCurriculumSubtitle()}
+        <p className="text-xs font-semibold text-gray-400 max-w-xs mx-auto">
+          {config.description}
         </p>
       </div>
 
