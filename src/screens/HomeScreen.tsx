@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart2, Calendar, Download, HelpCircle, Play, Settings, ShoppingBag, Trophy, Zap } from 'lucide-react';
+import { BarChart2, Calendar, HelpCircle, Play, Settings, ShoppingBag, Trophy, Zap } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { PlayerStats, ScreenName, UserProfile } from '../models/types';
 import { StorageService } from '../services/StorageService';
@@ -134,16 +134,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <span className="text-[11px] font-bold text-gray-300">Settings</span>
           </button>
         </div>
-
-        {/* Direct APK Download Link */}
-        <a
-          href="/dont-tap-it.apk"
-          download="dont-tap-it.apk"
-          className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold hover:bg-emerald-500/20 active:scale-95 transition-all mt-1"
-        >
-          <Download className="w-3.5 h-3.5" />
-          <span>Download Android App (.APK)</span>
-        </a>
       </div>
     </div>
   );
