@@ -4,6 +4,8 @@ import {
   CategoryProgressData,
   CategoryProgressMap,
   PlayerStats,
+  SubscriptionStatus,
+  SubscriptionTier,
   ThemeId,
   UserProfile,
 } from '../models/types';
@@ -25,6 +27,7 @@ const STORAGE_KEYS = {
   ONBOARDING_COMPLETED: 'dont_tap_it_onboarding_v1',
   REGISTERED_USERS_DB: 'dont_tap_it_auth_db_v1',
   CATEGORY_PROGRESS: 'dont_tap_it_cat_progress_v1',
+  SUBSCRIPTION: 'dont_tap_it_subscription_v1',
 };
 
 // In-memory storage fallback for SSR / testing / environments without browser localStorage
@@ -269,6 +272,81 @@ export class StorageService {
 
   public static setRemoveAds(purchased: boolean) {
     safeSetItem(STORAGE_KEYS.REMOVE_ADS_PURCHASED, purchased ? 'true' : 'false');
+  }
+
+  /**
+   * Subscription Management (Ad-Free VIP Pass)
+   */
+  public static loadSubscription(): SubscriptionStatus {
+    try {
+      const data = safeGetItem(STORAGE_KEYS.SUBSCRIPTION);
+      if (data) {
+        return JSON.parse(data);
+      }
+    } catch {
+      // fallback
+    }
+    return { isSubscribed: false };
+  }
+
+  public static saveSubscription(sub: SubscriptionStatus) {
+    try {
+      safeSetItem(STORAGE_KEYS.SUBSCRIPTION, JSON.stringify(sub));
+    } catch (e) {
+      console.error('StorageService: Error saving subscription', e);
+    }
+  }
+
+  public static activateSubscription(tier: SubscriptionTier): SubscriptionStatus {
+    const now = new Date();
+    let expiresAt: string | undefined;
+
+    if (tier === 'monthly') {
+      const exp = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      expiresAt = exp.toISOString();
+    } else if (tier === 'annual') {
+      const exp = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+      expiresAt = exp.toISOString();
+    } else {
+      // Lifetime
+      expiresAt = undefined;
+    }
+
+    const sub: SubscriptionStatus = {
+      isSubscribed: true,
+      tier,
+      startDate: now.toISOString(),
+      expiresAt,
+      autoRenew: tier !== 'lifetime',
+    };
+
+    this.saveSubscription(sub);
+    this.setRemoveAds(true);
+    return sub;
+  }
+
+  public static cancelSubscription(): SubscriptionStatus {
+    const sub = this.loadSubscription();
+    sub.autoRenew = false;
+    this.saveSubscription(sub);
+    return sub;
+  }
+
+  /**
+   * Checks if user has an active ad-free benefit (either one-time Remove Ads or VIP Subscription)
+   */
+  public static isAdFreeActive(): boolean {
+    if (this.hasRemovedAds()) {
+      return true;
+    }
+    const sub = this.loadSubscription();
+    if (!sub.isSubscribed) {
+      return false;
+    }
+    if (!sub.expiresAt) {
+      return true; // Lifetime
+    }
+    return new Date(sub.expiresAt).getTime() > Date.now();
   }
 
   /**

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Check, ShieldCheck, Sparkles, Coins } from 'lucide-react';
+import { Check, ShieldCheck, Sparkles, Coins, Crown, Zap, RefreshCw } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { HeaderBar } from '../components/common/HeaderBar';
-import { AppSettings, ThemeId } from '../models/types';
+import { AppSettings, SubscriptionStatus, SubscriptionTier, ThemeId } from '../models/types';
 import { THEMES } from '../utils/constants';
 import { PurchaseService } from '../services/PurchaseService';
 import { StorageService } from '../services/StorageService';
@@ -22,17 +22,36 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({
   const [unlockedThemes, setUnlockedThemes] = useState<ThemeId[]>(() =>
     StorageService.loadUnlockedThemes()
   );
-  const [hasNoAds, setHasNoAds] = useState<boolean>(() => StorageService.hasRemovedAds());
+  const [subscription, setSubscription] = useState<SubscriptionStatus>(() =>
+    StorageService.loadSubscription()
+  );
+  const [hasNoAds, setHasNoAds] = useState<boolean>(() => StorageService.isAdFreeActive());
   const [coins, setCoins] = useState<number>(() => StorageService.loadCoins());
   const [msg, setMsg] = useState<string | null>(null);
-  const [isBuyingAds, setIsBuyingAds] = useState(false);
+  const [buyingTier, setBuyingTier] = useState<string | null>(null);
   const [buyingCoinPack, setBuyingCoinPack] = useState<number | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
 
-  const handleBuyRemoveAds = async () => {
-    setIsBuyingAds(true);
-    const res = await PurchaseService.buyRemoveAds();
-    setIsBuyingAds(false);
+  const handleBuySubscription = async (tier: SubscriptionTier, priceInr: number) => {
+    setBuyingTier(tier);
+    const res = await PurchaseService.buySubscription(tier, priceInr);
+    setBuyingTier(null);
     if (res.success) {
+      setSubscription(StorageService.loadSubscription());
+      setHasNoAds(true);
+      setCoins(StorageService.loadCoins());
+      soundEngine.playPurchaseSuccess();
+      setMsg(res.message);
+      setTimeout(() => setMsg(null), 4000);
+    }
+  };
+
+  const handleBuyRemoveAdsLifetime = async () => {
+    setBuyingTier('lifetime');
+    const res = await PurchaseService.buyRemoveAds();
+    setBuyingTier(null);
+    if (res.success) {
+      setSubscription(StorageService.loadSubscription());
       setHasNoAds(true);
       soundEngine.playPurchaseSuccess();
       setMsg(res.message);
@@ -50,6 +69,22 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({
       setMsg(res.message);
       setTimeout(() => setMsg(null), 4000);
     }
+  };
+
+  const handleRestorePurchases = async () => {
+    setIsRestoring(true);
+    const res = await PurchaseService.restorePurchases();
+    setIsRestoring(false);
+    setSubscription(StorageService.loadSubscription());
+    setHasNoAds(StorageService.isAdFreeActive());
+    setCoins(StorageService.loadCoins());
+    if (res.success) {
+      soundEngine.playPurchaseSuccess();
+    } else {
+      soundEngine.playWrong();
+    }
+    setMsg(res.message);
+    setTimeout(() => setMsg(null), 4000);
   };
 
   const handleUnlockTheme = (themeId: ThemeId) => {
@@ -78,7 +113,7 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({
 
   const COIN_PACKS = [
     { coins: 500, priceInr: 49, badge: 'STARTER', popular: false },
-    { coins: 1500, priceInr: 99, badge: 'MOST POPULAR', popular: true },
+    { coins: 1500, priceInr: 99, badge: 'POPULAR', popular: true },
     { coins: 5000, priceInr: 199, badge: 'BEST VALUE', popular: false },
   ];
 
@@ -86,9 +121,9 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({
     <div className="h-screen max-h-screen w-full bg-[#0A0E17] flex flex-col text-white select-none relative overflow-hidden">
       <HeaderBar title="Game Shop" onBack={onBack} showCoins={true} />
 
-      {/* Scrollable Container with smooth touch scrolling */}
+      {/* Scrollable View with smooth touch pan */}
       <div
-        className="flex-1 w-full max-w-sm mx-auto px-6 py-4 flex flex-col gap-6 overflow-y-auto overscroll-contain custom-scrollbar touch-pan-y pb-16"
+        className="flex-1 w-full max-w-sm mx-auto px-6 py-4 flex flex-col gap-6 overflow-y-auto overscroll-contain custom-scrollbar touch-pan-y pb-20"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
         {msg && (
@@ -114,47 +149,147 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({
           </div>
         </div>
 
-        {/* REMOVE ADS CARD (INR Pricing) */}
-        <div className="bg-gradient-to-br from-[#131A29] via-[#1B2438] to-[#131A29] border border-cyan-500/30 rounded-3xl p-5 shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none" />
-
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <span className="text-[10px] font-black tracking-widest text-cyan-400 uppercase">
-                ONE-TIME UPGRADE
-              </span>
-              <h3 className="text-xl font-black font-display text-white mt-0.5">
-                REMOVE ADS
+        {/* ========================================================================= */}
+        {/* AD-FREE VIP SUBSCRIPTIONS & PASSES */}
+        {/* ========================================================================= */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Crown className="w-4 h-4 text-amber-400" />
+              <h3 className="text-xs font-black tracking-widest text-white uppercase">
+                AD-FREE VIP PASS
               </h3>
             </div>
-            <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center">
-              <ShieldCheck className="w-6 h-6" />
-            </div>
+            <span className="text-[10px] font-bold text-cyan-400 uppercase">Zero Interruptions</span>
           </div>
 
-          <p className="text-xs text-gray-300 mb-4 leading-relaxed">
-            Permanently remove all interstitial ads. Enjoy uninterrupted rapid gameplay forever!
-          </p>
-
           {hasNoAds ? (
-            <div className="w-full py-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-black text-xs text-center flex items-center justify-center gap-1.5">
-              <Check className="w-4 h-4" />
-              <span>ACTIVE • ADS REMOVED</span>
+            <div className="bg-gradient-to-r from-emerald-500/20 via-cyan-500/15 to-[#131A29] border border-emerald-500/40 rounded-3xl p-5 shadow-xl relative overflow-hidden">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/40">
+                  <Check className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-black tracking-widest text-emerald-400 uppercase">
+                    ACTIVE STATUS
+                  </span>
+                  <h4 className="text-base font-black text-white">
+                    {subscription.tier === 'lifetime'
+                      ? 'LIFETIME AD-FREE UNLOCKED'
+                      : `VIP AD-FREE (${subscription.tier?.toUpperCase()} PLAN)`}
+                  </h4>
+                </div>
+              </div>
+              <p className="text-xs text-gray-300">
+                {subscription.tier === 'lifetime'
+                  ? 'You enjoy permanent ad-free gameplay forever across all modes!'
+                  : subscription.expiresAt
+                  ? `Active until ${new Date(subscription.expiresAt).toLocaleDateString()}. Enjoy ad-free gaming!`
+                  : 'Active subscription with full VIP perks!'}
+              </p>
             </div>
           ) : (
-            <Button
-              variant="primary"
-              fullWidth
-              size="md"
-              onClick={handleBuyRemoveAds}
-              disabled={isBuyingAds}
-            >
-              {isBuyingAds ? 'Processing...' : 'Unlock for ₹99'}
-            </Button>
+            <div className="flex flex-col gap-3">
+              {/* MONTHLY SUBSCRIPTION */}
+              <div className="bg-[#131A29] border border-cyan-500/30 rounded-3xl p-4.5 flex flex-col gap-3 hover:border-cyan-400/60 transition-all shadow-lg">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center border border-cyan-500/30">
+                      <Zap className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-black text-sm text-white">Monthly Ad-Free Pass</h4>
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                          FLEXIBLE
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-300 mt-0.5">
+                        Zero interstitial ads • Cancel anytime
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-white/5">
+                  <span className="text-xs font-black text-cyan-400">
+                    ₹29 <span className="text-[10px] text-gray-400 font-normal">/ month</span>
+                  </span>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => handleBuySubscription('monthly', 29)}
+                    disabled={buyingTier === 'monthly'}
+                  >
+                    {buyingTier === 'monthly' ? 'Subscribing...' : 'Subscribe'}
+                  </Button>
+                </div>
+              </div>
+
+              {/* ANNUAL SUBSCRIPTION (BEST VALUE) */}
+              <div className="bg-gradient-to-br from-[#1A2338] via-[#131A29] to-[#1A2338] border-2 border-amber-500/50 rounded-3xl p-4.5 flex flex-col gap-3 shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 px-3 py-1 bg-amber-400 text-black text-[9px] font-black uppercase rounded-bl-xl tracking-wider">
+                  SAVE 42% + 1,000 COINS
+                </div>
+
+                <div className="flex items-center gap-3 mt-1">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/40">
+                    <Crown className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-sm text-white">Annual VIP Pass</h4>
+                    <p className="text-[11px] text-amber-300/90 mt-0.5">
+                      12 Months Ad-Free + 1,000 Bonus Coins
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-white/10">
+                  <div>
+                    <span className="text-sm font-black text-amber-400">
+                      ₹199 <span className="text-[10px] text-gray-400 font-normal">/ year</span>
+                    </span>
+                    <div className="text-[9px] text-gray-400">Just ₹16.50/mo</div>
+                  </div>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => handleBuySubscription('annual', 199)}
+                    disabled={buyingTier === 'annual'}
+                  >
+                    {buyingTier === 'annual' ? 'Activating...' : 'Get VIP Pass'}
+                  </Button>
+                </div>
+              </div>
+
+              {/* LIFETIME PASS */}
+              <div className="bg-[#131A29] border border-white/10 rounded-3xl p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-2xl bg-white/10 text-gray-300 flex items-center justify-center">
+                    <ShieldCheck className="w-4.5 h-4.5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-xs text-white">Lifetime Ad-Free Pass</h4>
+                    <p className="text-[10px] text-gray-400">One-time payment • Forever</p>
+                  </div>
+                </div>
+
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleBuyRemoveAdsLifetime}
+                  disabled={buyingTier === 'lifetime'}
+                >
+                  {buyingTier === 'lifetime' ? '...' : '₹99 One-Time'}
+                </Button>
+              </div>
+            </div>
           )}
         </div>
 
+        {/* ========================================================================= */}
         {/* STAR COIN PACKS (INR Pricing) */}
+        {/* ========================================================================= */}
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-black tracking-widest text-gray-400 uppercase">
@@ -196,7 +331,9 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({
           </div>
         </div>
 
+        {/* ========================================================================= */}
         {/* COSMETIC THEMES SECTION */}
+        {/* ========================================================================= */}
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-black tracking-widest text-gray-400 uppercase">
@@ -265,6 +402,18 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({
               );
             })}
           </div>
+        </div>
+
+        {/* RESTORE PURCHASES */}
+        <div className="pt-2 text-center">
+          <button
+            onClick={handleRestorePurchases}
+            disabled={isRestoring}
+            className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRestoring ? 'animate-spin' : ''}`} />
+            <span>{isRestoring ? 'Restoring Purchases...' : 'Restore Purchases & Subscriptions'}</span>
+          </button>
         </div>
       </div>
     </div>

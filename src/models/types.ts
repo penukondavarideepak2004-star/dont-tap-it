@@ -203,3 +203,14 @@ export interface AnalyticsEvent {
   params?: Record<string, string | number | boolean | undefined>;
   timestamp: number;
 }
+
+export type SubscriptionTier = 'monthly' | 'annual' | 'lifetime';
+
+export interface SubscriptionStatus {
+  isSubscribed: boolean;
+  tier?: SubscriptionTier;
+  startDate?: string;
+  expiresAt?: string;
+  autoRenew?: boolean;
+}
+

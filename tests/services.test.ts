@@ -88,4 +88,47 @@ describe("DON'T TAP IT! — Services & Persistence Tests", () => {
     expect(res.success).toBe(true);
     expect(StorageService.loadCoins()).toBe(600);
   });
+
+  it('should activate Monthly and Annual Ad-Free VIP subscriptions and verify ad-free benefits', async () => {
+    expect(StorageService.isAdFreeActive()).toBe(false);
+
+    // 1. Monthly subscription
+    const monthlyRes = await PurchaseService.buySubscription('monthly', 29);
+    expect(monthlyRes.success).toBe(true);
+    expect(StorageService.isAdFreeActive()).toBe(true);
+
+    const sub = StorageService.loadSubscription();
+    expect(sub.isSubscribed).toBe(true);
+    expect(sub.tier).toBe('monthly');
+    expect(sub.autoRenew).toBe(true);
+
+    // 2. Annual subscription with 1,000 bonus coins
+    const coinsBefore = StorageService.loadCoins();
+    const annualRes = await PurchaseService.buySubscription('annual', 199);
+    expect(annualRes.success).toBe(true);
+    expect(StorageService.isAdFreeActive()).toBe(true);
+    expect(StorageService.loadCoins()).toBe(coinsBefore + 1000);
+
+    const annualSub = StorageService.loadSubscription();
+    expect(annualSub.tier).toBe('annual');
+  });
+
+  it('should handle subscription expiry logic correctly', () => {
+    // Expired subscription in the past
+    StorageService.saveSubscription({
+      isSubscribed: true,
+      tier: 'monthly',
+      expiresAt: new Date(Date.now() - 10000).toISOString(),
+    });
+    StorageService.setRemoveAds(false);
+    expect(StorageService.isAdFreeActive()).toBe(false);
+
+    // Active subscription in the future
+    StorageService.saveSubscription({
+      isSubscribed: true,
+      tier: 'monthly',
+      expiresAt: new Date(Date.now() + 100000).toISOString(),
+    });
+    expect(StorageService.isAdFreeActive()).toBe(true);
+  });
 });

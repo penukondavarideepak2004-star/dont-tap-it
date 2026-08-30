@@ -1,4 +1,4 @@
-import { ThemeId } from '../models/types';
+import { SubscriptionTier, ThemeId } from '../models/types';
 import { THEMES } from '../utils/constants';
 import { analytics } from './AnalyticsService';
 import { StorageService } from './StorageService';
@@ -10,7 +10,7 @@ export interface PurchaseResult {
 
 export class PurchaseService {
   /**
-   * Purchases Remove Ads feature (₹99 INR)
+   * Purchases Remove Ads feature (₹99 INR lifetime)
    */
   public static async buyRemoveAds(): Promise<PurchaseResult> {
     analytics.logEvent('purchase_started', { item: 'remove_ads', priceInr: 99 });
@@ -18,10 +18,37 @@ export class PurchaseService {
     return new Promise((resolve) => {
       setTimeout(() => {
         StorageService.setRemoveAds(true);
+        StorageService.activateSubscription('lifetime');
         analytics.logEvent('purchase_completed', { item: 'remove_ads', priceInr: 99 });
         resolve({
           success: true,
           message: 'Ads removed successfully! Thank you for supporting DON\'T TAP IT!',
+        });
+      }, 800);
+    });
+  }
+
+  /**
+   * Purchases Ad-Free VIP Subscription (Monthly / Annual / Lifetime)
+   */
+  public static async buySubscription(
+    tier: SubscriptionTier,
+    priceInr: number
+  ): Promise<PurchaseResult> {
+    analytics.logEvent('purchase_started', { item: `vip_sub_${tier}`, priceInr });
+
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        StorageService.activateSubscription(tier);
+        // Bonus coins for annual plan
+        if (tier === 'annual') {
+          const current = StorageService.loadCoins();
+          StorageService.saveCoins(current + 1000);
+        }
+        analytics.logEvent('purchase_completed', { item: `vip_sub_${tier}`, priceInr });
+        resolve({
+          success: true,
+          message: `VIP Pass (${tier.toUpperCase()}) activated! Enjoy ad-free gaming!`,
         });
       }, 800);
     });
@@ -47,20 +74,20 @@ export class PurchaseService {
   }
 
   /**
-   * Restores existing purchases
+   * Restores existing purchases and active subscriptions
    */
   public static async restorePurchases(): Promise<PurchaseResult> {
     analytics.logEvent('purchase_restore_started');
 
     return new Promise((resolve) => {
       setTimeout(() => {
-        const hasAdsRemoved = StorageService.hasRemovedAds();
-        analytics.logEvent('purchase_restore_completed', { restored: hasAdsRemoved });
+        const isAdFree = StorageService.isAdFreeActive();
+        analytics.logEvent('purchase_restore_completed', { restored: isAdFree });
         resolve({
           success: true,
-          message: hasAdsRemoved
-            ? 'Your "Remove Ads" purchase has been restored!'
-            : 'No previous purchases found for this account.',
+          message: isAdFree
+            ? 'Your VIP Ad-Free Subscription & purchases have been restored!'
+            : 'No active subscriptions or purchases found for this account.',
         });
       }, 900);
     });
