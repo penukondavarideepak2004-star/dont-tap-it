@@ -209,7 +209,27 @@ export class StorageService {
     return all[category] || { highestUnlockedLevel: 1, completedLevels: [] };
   }
 
+  public static isCategoryCompleted(category: CategoryId): boolean {
+    const progress = this.getCategoryProgress(category);
+    const total = CATEGORIES_CONFIG[category]?.totalLevels || 28;
+    return progress.completedLevels.length >= total;
+  }
+
+  public static isCategoryUnlocked(category: CategoryId): boolean {
+    if (category === 'beginner') {
+      return true;
+    }
+    if (category === 'genius') {
+      return this.isCategoryCompleted('beginner');
+    }
+    if (category === 'extreme') {
+      return this.isCategoryCompleted('genius');
+    }
+    return true;
+  }
+
   public static isLevelUnlocked(category: CategoryId, level: number): boolean {
+    if (!this.isCategoryUnlocked(category)) return false;
     if (level === 1) return true;
     const progress = this.getCategoryProgress(category);
     return level <= progress.highestUnlockedLevel;

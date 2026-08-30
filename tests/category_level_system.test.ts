@@ -211,19 +211,57 @@ describe("DON'T TAP IT! — Complete Category & Level System Test Suite", () => 
   });
 
   // =========================================================================
-  // 7. SEQUENTIAL LEVEL UNLOCKING & PERSISTENCE
+  // 7. SEQUENTIAL CATEGORY & LEVEL UNLOCKING & PERSISTENCE
   // =========================================================================
-  describe('Sequential Level Unlocking & Persistence System', () => {
-    it('should start with Level 1 unlocked and subsequent levels locked for all categories', () => {
+  describe('Sequential Category & Level Unlocking System', () => {
+    it('should start with Beginner unlocked, while Genius and Extreme Genius are locked', () => {
+      expect(StorageService.isCategoryUnlocked('beginner')).toBe(true);
+      expect(StorageService.isCategoryUnlocked('genius')).toBe(false);
+      expect(StorageService.isCategoryUnlocked('extreme')).toBe(false);
+
+      // Beginner Level 1 is unlocked
       expect(StorageService.isLevelUnlocked('beginner', 1)).toBe(true);
       expect(StorageService.isLevelUnlocked('beginner', 2)).toBe(false);
-      expect(StorageService.isLevelUnlocked('beginner', 28)).toBe(false);
 
+      // Genius and Extreme levels are locked because the categories are locked
+      expect(StorageService.isLevelUnlocked('genius', 1)).toBe(false);
+      expect(StorageService.isLevelUnlocked('extreme', 1)).toBe(false);
+    });
+
+    it('should unlock Genius ONLY after completing all 28 Beginner levels', () => {
+      for (let lvl = 1; lvl <= 27; lvl++) {
+        StorageService.markLevelCompleted('beginner', lvl);
+      }
+      expect(StorageService.isCategoryCompleted('beginner')).toBe(false);
+      expect(StorageService.isCategoryUnlocked('genius')).toBe(false);
+
+      // Complete 28th Beginner level
+      StorageService.markLevelCompleted('beginner', 28);
+      expect(StorageService.isCategoryCompleted('beginner')).toBe(true);
+      expect(StorageService.isCategoryUnlocked('genius')).toBe(true);
       expect(StorageService.isLevelUnlocked('genius', 1)).toBe(true);
-      expect(StorageService.isLevelUnlocked('genius', 2)).toBe(false);
+      expect(StorageService.isCategoryUnlocked('extreme')).toBe(false);
+    });
 
+    it('should unlock Extreme Genius ONLY after completing all 14 Genius levels', () => {
+      // 1. Complete all 28 Beginner levels
+      for (let lvl = 1; lvl <= 28; lvl++) {
+        StorageService.markLevelCompleted('beginner', lvl);
+      }
+      expect(StorageService.isCategoryUnlocked('genius')).toBe(true);
+
+      // 2. Complete 13 Genius levels
+      for (let lvl = 1; lvl <= 13; lvl++) {
+        StorageService.markLevelCompleted('genius', lvl);
+      }
+      expect(StorageService.isCategoryCompleted('genius')).toBe(false);
+      expect(StorageService.isCategoryUnlocked('extreme')).toBe(false);
+
+      // 3. Complete 14th Genius level
+      StorageService.markLevelCompleted('genius', 14);
+      expect(StorageService.isCategoryCompleted('genius')).toBe(true);
+      expect(StorageService.isCategoryUnlocked('extreme')).toBe(true);
       expect(StorageService.isLevelUnlocked('extreme', 1)).toBe(true);
-      expect(StorageService.isLevelUnlocked('extreme', 2)).toBe(false);
     });
 
     it('should unlock Level 2 only upon completing Level 1, and sequentially up to max', () => {
