@@ -10,22 +10,10 @@ export interface PurchaseResult {
 
 export class PurchaseService {
   /**
-   * Purchases Remove Ads feature (₹99 INR lifetime)
+   * Purchases Ad-Free Subscription
    */
   public static async buyRemoveAds(): Promise<PurchaseResult> {
-    analytics.logEvent('purchase_started', { item: 'remove_ads', priceInr: 99 });
-
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        StorageService.setRemoveAds(true);
-        StorageService.activateSubscription('lifetime');
-        analytics.logEvent('purchase_completed', { item: 'remove_ads', priceInr: 99 });
-        resolve({
-          success: true,
-          message: 'Ads removed successfully! Thank you for supporting DON\'T TAP IT!',
-        });
-      }, 800);
-    });
+    return this.buySubscription('monthly', 29);
   }
 
   /**

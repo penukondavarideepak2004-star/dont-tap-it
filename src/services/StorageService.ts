@@ -299,25 +299,15 @@ export class StorageService {
 
   public static activateSubscription(tier: SubscriptionTier): SubscriptionStatus {
     const now = new Date();
-    let expiresAt: string | undefined;
-
-    if (tier === 'monthly') {
-      const exp = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-      expiresAt = exp.toISOString();
-    } else if (tier === 'annual') {
-      const exp = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
-      expiresAt = exp.toISOString();
-    } else {
-      // Lifetime
-      expiresAt = undefined;
-    }
+    const days = tier === 'annual' ? 365 : 30;
+    const expiresAt = new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString();
 
     const sub: SubscriptionStatus = {
       isSubscribed: true,
       tier,
       startDate: now.toISOString(),
       expiresAt,
-      autoRenew: tier !== 'lifetime',
+      autoRenew: true,
     };
 
     this.saveSubscription(sub);

@@ -204,7 +204,7 @@ export interface AnalyticsEvent {
   timestamp: number;
 }
 
-export type SubscriptionTier = 'monthly' | 'annual' | 'lifetime';
+export type SubscriptionTier = 'monthly' | 'annual';
 
 export interface SubscriptionStatus {
   isSubscribed: boolean;

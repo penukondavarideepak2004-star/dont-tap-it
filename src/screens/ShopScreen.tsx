@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, ShieldCheck, Sparkles, Coins, Crown, Zap, RefreshCw } from 'lucide-react';
+import { Check, Sparkles, Coins, Crown, Zap, RefreshCw } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { HeaderBar } from '../components/common/HeaderBar';
 import { AppSettings, SubscriptionStatus, SubscriptionTier, ThemeId } from '../models/types';
@@ -40,19 +40,6 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({
       setSubscription(StorageService.loadSubscription());
       setHasNoAds(true);
       setCoins(StorageService.loadCoins());
-      soundEngine.playPurchaseSuccess();
-      setMsg(res.message);
-      setTimeout(() => setMsg(null), 4000);
-    }
-  };
-
-  const handleBuyRemoveAdsLifetime = async () => {
-    setBuyingTier('lifetime');
-    const res = await PurchaseService.buyRemoveAds();
-    setBuyingTier(null);
-    if (res.success) {
-      setSubscription(StorageService.loadSubscription());
-      setHasNoAds(true);
       soundEngine.playPurchaseSuccess();
       setMsg(res.message);
       setTimeout(() => setMsg(null), 4000);
@@ -150,7 +137,7 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({
         </div>
 
         {/* ========================================================================= */}
-        {/* AD-FREE VIP SUBSCRIPTIONS & PASSES */}
+        {/* AD-FREE VIP SUBSCRIPTION PLANS */}
         {/* ========================================================================= */}
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
@@ -174,18 +161,14 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({
                     ACTIVE STATUS
                   </span>
                   <h4 className="text-base font-black text-white">
-                    {subscription.tier === 'lifetime'
-                      ? 'LIFETIME AD-FREE UNLOCKED'
-                      : `VIP AD-FREE (${subscription.tier?.toUpperCase()} PLAN)`}
+                    VIP AD-FREE ({subscription.tier ? subscription.tier.toUpperCase() : 'VIP'} PLAN)
                   </h4>
                 </div>
               </div>
               <p className="text-xs text-gray-300">
-                {subscription.tier === 'lifetime'
-                  ? 'You enjoy permanent ad-free gameplay forever across all modes!'
-                  : subscription.expiresAt
-                  ? `Active until ${new Date(subscription.expiresAt).toLocaleDateString()}. Enjoy ad-free gaming!`
-                  : 'Active subscription with full VIP perks!'}
+                {subscription.expiresAt
+                  ? `Active until ${new Date(subscription.expiresAt).toLocaleDateString()}. Enjoy uninterrupted rapid gameplay!`
+                  : 'Active VIP membership with zero ads!'}
               </p>
             </div>
           ) : (
@@ -199,9 +182,9 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h4 className="font-black text-sm text-white">Monthly Ad-Free Pass</h4>
+                        <h4 className="font-black text-sm text-white">Monthly Ad-Free</h4>
                         <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                          FLEXIBLE
+                          MONTHLY
                         </span>
                       </div>
                       <p className="text-[11px] text-gray-300 mt-0.5">
@@ -260,28 +243,6 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({
                     {buyingTier === 'annual' ? 'Activating...' : 'Get VIP Pass'}
                   </Button>
                 </div>
-              </div>
-
-              {/* LIFETIME PASS */}
-              <div className="bg-[#131A29] border border-white/10 rounded-3xl p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-2xl bg-white/10 text-gray-300 flex items-center justify-center">
-                    <ShieldCheck className="w-4.5 h-4.5" />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-xs text-white">Lifetime Ad-Free Pass</h4>
-                    <p className="text-[10px] text-gray-400">One-time payment • Forever</p>
-                  </div>
-                </div>
-
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleBuyRemoveAdsLifetime}
-                  disabled={buyingTier === 'lifetime'}
-                >
-                  {buyingTier === 'lifetime' ? '...' : '₹99 One-Time'}
-                </Button>
               </div>
             </div>
           )}
@@ -412,7 +373,7 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({
             className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isRestoring ? 'animate-spin' : ''}`} />
-            <span>{isRestoring ? 'Restoring Purchases...' : 'Restore Purchases & Subscriptions'}</span>
+            <span>{isRestoring ? 'Restoring Subscriptions...' : 'Restore Subscriptions'}</span>
           </button>
         </div>
       </div>
