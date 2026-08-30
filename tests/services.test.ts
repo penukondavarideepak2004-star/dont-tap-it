@@ -81,4 +81,11 @@ describe("DON'T TAP IT! — Services & Persistence Tests", () => {
     expect(unlocked).toContain('neon');
     expect(StorageService.loadCoins()).toBe(500); // 1000 - 500
   });
+
+  it('should purchase coin packs with INR pricing and credit coin balance accurately', async () => {
+    StorageService.saveCoins(100);
+    const res = await PurchaseService.buyCoins(500, 49);
+    expect(res.success).toBe(true);
+    expect(StorageService.loadCoins()).toBe(600);
+  });
 });

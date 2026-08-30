@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, ShieldCheck, Sparkles } from 'lucide-react';
+import { Check, ShieldCheck, Sparkles, Coins } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { HeaderBar } from '../components/common/HeaderBar';
 import { AppSettings, ThemeId } from '../models/types';
@@ -23,8 +23,10 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({
     StorageService.loadUnlockedThemes()
   );
   const [hasNoAds, setHasNoAds] = useState<boolean>(() => StorageService.hasRemovedAds());
+  const [coins, setCoins] = useState<number>(() => StorageService.loadCoins());
   const [msg, setMsg] = useState<string | null>(null);
   const [isBuyingAds, setIsBuyingAds] = useState(false);
+  const [buyingCoinPack, setBuyingCoinPack] = useState<number | null>(null);
 
   const handleBuyRemoveAds = async () => {
     setIsBuyingAds(true);
@@ -38,10 +40,23 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({
     }
   };
 
+  const handleBuyCoinPack = async (amount: number, inrPrice: number) => {
+    setBuyingCoinPack(amount);
+    const res = await PurchaseService.buyCoins(amount, inrPrice);
+    setBuyingCoinPack(null);
+    if (res.success) {
+      setCoins(StorageService.loadCoins());
+      soundEngine.playPurchaseSuccess();
+      setMsg(res.message);
+      setTimeout(() => setMsg(null), 4000);
+    }
+  };
+
   const handleUnlockTheme = (themeId: ThemeId) => {
     const res = PurchaseService.unlockTheme(themeId);
     if (res.success) {
       setUnlockedThemes(StorageService.loadUnlockedThemes());
+      setCoins(StorageService.loadCoins());
       soundEngine.playPurchaseSuccess();
       const updated = { ...settings, activeThemeId: themeId };
       onUpdateSettings(updated);
@@ -61,18 +76,45 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({
     soundEngine.playButtonTap();
   };
 
-  return (
-    <div className="min-h-screen w-full bg-[#0A0E17] flex flex-col justify-between text-white select-none relative">
-      <HeaderBar title="Game Shop" onBack={onBack} />
+  const COIN_PACKS = [
+    { coins: 500, priceInr: 49, badge: 'STARTER', popular: false },
+    { coins: 1500, priceInr: 99, badge: 'MOST POPULAR', popular: true },
+    { coins: 5000, priceInr: 199, badge: 'BEST VALUE', popular: false },
+  ];
 
-      <div className="flex-1 w-full max-w-sm mx-auto p-6 flex flex-col gap-5 overflow-y-auto">
+  return (
+    <div className="h-screen max-h-screen w-full bg-[#0A0E17] flex flex-col text-white select-none relative overflow-hidden">
+      <HeaderBar title="Game Shop" onBack={onBack} showCoins={true} />
+
+      {/* Scrollable Container with smooth touch scrolling */}
+      <div
+        className="flex-1 w-full max-w-sm mx-auto px-6 py-4 flex flex-col gap-6 overflow-y-auto overscroll-contain custom-scrollbar touch-pan-y pb-16"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
         {msg && (
-          <div className="p-3 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-xs font-bold text-center animate-pop-in">
+          <div className="p-3 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-xs font-bold text-center animate-pop-in shadow-lg">
             {msg}
           </div>
         )}
 
-        {/* REMOVE ADS CARD */}
+        {/* COIN BALANCE DISPLAY */}
+        <div className="flex items-center justify-between p-4 rounded-3xl bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-transparent border border-amber-500/30 shadow-lg">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-400/30">
+              <Coins className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-[10px] font-black tracking-widest text-amber-400 uppercase">
+                YOUR BALANCE
+              </span>
+              <h4 className="text-xl font-black text-white font-display">
+                {coins.toLocaleString()} <span className="text-xs text-amber-400 font-bold">Coins</span>
+              </h4>
+            </div>
+          </div>
+        </div>
+
+        {/* REMOVE ADS CARD (INR Pricing) */}
         <div className="bg-gradient-to-br from-[#131A29] via-[#1B2438] to-[#131A29] border border-cyan-500/30 rounded-3xl p-5 shadow-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none" />
 
@@ -107,9 +149,51 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({
               onClick={handleBuyRemoveAds}
               disabled={isBuyingAds}
             >
-              {isBuyingAds ? 'Processing...' : 'Unlock ($1.99)'}
+              {isBuyingAds ? 'Processing...' : 'Unlock for ₹99'}
             </Button>
           )}
+        </div>
+
+        {/* STAR COIN PACKS (INR Pricing) */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-black tracking-widest text-gray-400 uppercase">
+              COIN PACKS (INR)
+            </h3>
+            <span className="text-[11px] text-amber-400 font-bold">Instant Top-Up</span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2.5">
+            {COIN_PACKS.map((pack) => (
+              <button
+                key={pack.coins}
+                onClick={() => handleBuyCoinPack(pack.coins, pack.priceInr)}
+                disabled={buyingCoinPack === pack.coins}
+                className={`flex flex-col items-center justify-between p-3.5 rounded-2xl border transition-all active:scale-95 text-center relative overflow-hidden ${
+                  pack.popular
+                    ? 'bg-gradient-to-b from-amber-500/20 to-[#131A29] border-amber-500/50 shadow-lg shadow-amber-500/10'
+                    : 'bg-[#131A29] border-white/10 hover:border-white/20'
+                }`}
+              >
+                <span className={`text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full mb-1 ${
+                  pack.popular ? 'bg-amber-400 text-black font-black' : 'bg-white/10 text-gray-300'
+                }`}>
+                  {pack.badge}
+                </span>
+
+                <div className="my-1">
+                  <div className="text-base font-black text-white font-display">
+                    +{pack.coins.toLocaleString()}
+                  </div>
+                  <div className="text-[10px] text-amber-400 font-bold">Coins</div>
+                </div>
+
+                <div className="mt-1 w-full py-1 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-black text-white">
+                  {buyingCoinPack === pack.coins ? '...' : `₹${pack.priceInr}`}
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* COSMETIC THEMES SECTION */}
@@ -118,7 +202,7 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({
             <h3 className="text-xs font-black tracking-widest text-gray-400 uppercase">
               VISUAL THEMES
             </h3>
-            <span className="text-[11px] text-gray-400 font-medium">Earn coins by scoring points!</span>
+            <span className="text-[11px] text-gray-400 font-medium">Unlock with Coins</span>
           </div>
 
           <div className="flex flex-col gap-3">
@@ -186,3 +270,5 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({
     </div>
   );
 };
+
+export default ShopScreen;

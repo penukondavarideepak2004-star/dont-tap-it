@@ -10,20 +10,39 @@ export interface PurchaseResult {
 
 export class PurchaseService {
   /**
-   * Purchases Remove Ads feature
+   * Purchases Remove Ads feature (₹99 INR)
    */
   public static async buyRemoveAds(): Promise<PurchaseResult> {
-    analytics.logEvent('purchase_started', { item: 'remove_ads' });
+    analytics.logEvent('purchase_started', { item: 'remove_ads', priceInr: 99 });
 
     return new Promise((resolve) => {
       setTimeout(() => {
         StorageService.setRemoveAds(true);
-        analytics.logEvent('purchase_completed', { item: 'remove_ads' });
+        analytics.logEvent('purchase_completed', { item: 'remove_ads', priceInr: 99 });
         resolve({
           success: true,
           message: 'Ads removed successfully! Thank you for supporting DON\'T TAP IT!',
         });
       }, 800);
+    });
+  }
+
+  /**
+   * Purchases Star Coin Packs in INR
+   */
+  public static async buyCoins(coins: number, priceInr: number): Promise<PurchaseResult> {
+    analytics.logEvent('purchase_started', { item: `coins_${coins}`, priceInr });
+
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const current = StorageService.loadCoins();
+        StorageService.saveCoins(current + coins);
+        analytics.logEvent('purchase_completed', { item: `coins_${coins}`, priceInr });
+        resolve({
+          success: true,
+          message: `Added ${coins.toLocaleString()} Star Coins to your account!`,
+        });
+      }, 700);
     });
   }
 
