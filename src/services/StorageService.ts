@@ -1,5 +1,19 @@
-import { AppSettings, PlayerStats, ThemeId, UserProfile } from '../models/types';
-import { INITIAL_GUEST_USER, INITIAL_SETTINGS, INITIAL_STATS } from '../utils/constants';
+import {
+  AppSettings,
+  CategoryId,
+  CategoryProgressData,
+  CategoryProgressMap,
+  PlayerStats,
+  ThemeId,
+  UserProfile,
+} from '../models/types';
+import {
+  CATEGORIES_CONFIG,
+  INITIAL_CATEGORY_PROGRESS,
+  INITIAL_GUEST_USER,
+  INITIAL_SETTINGS,
+  INITIAL_STATS,
+} from '../utils/constants';
 
 const STORAGE_KEYS = {
   USER: 'dont_tap_it_user_v1',
@@ -10,6 +24,7 @@ const STORAGE_KEYS = {
   COINS: 'dont_tap_it_coins_v1',
   ONBOARDING_COMPLETED: 'dont_tap_it_onboarding_v1',
   REGISTERED_USERS_DB: 'dont_tap_it_auth_db_v1',
+  CATEGORY_PROGRESS: 'dont_tap_it_cat_progress_v1',
 };
 
 // In-memory storage fallback for SSR / testing / environments without browser localStorage
@@ -162,6 +177,70 @@ export class StorageService {
   }
 
   /**
+   * Category Progression & Level Unlocking System
+   */
+  public static loadCategoryProgress(): CategoryProgressMap {
+    try {
+      const data = safeGetItem(STORAGE_KEYS.CATEGORY_PROGRESS);
+      if (data) {
+        const parsed = JSON.parse(data);
+        return {
+          beginner: parsed.beginner || INITIAL_CATEGORY_PROGRESS.beginner,
+          genius: parsed.genius || INITIAL_CATEGORY_PROGRESS.genius,
+          extreme: parsed.extreme || INITIAL_CATEGORY_PROGRESS.extreme,
+        };
+      }
+    } catch {
+      // fallback
+    }
+    return { ...INITIAL_CATEGORY_PROGRESS };
+  }
+
+  public static saveCategoryProgress(progress: CategoryProgressMap) {
+    try {
+      safeSetItem(STORAGE_KEYS.CATEGORY_PROGRESS, JSON.stringify(progress));
+    } catch (e) {
+      console.error('StorageService: Error saving category progress', e);
+    }
+  }
+
+  public static getCategoryProgress(category: CategoryId): CategoryProgressData {
+    const all = this.loadCategoryProgress();
+    return all[category] || { highestUnlockedLevel: 1, completedLevels: [] };
+  }
+
+  public static isLevelUnlocked(category: CategoryId, level: number): boolean {
+    if (level === 1) return true;
+    const progress = this.getCategoryProgress(category);
+    return level <= progress.highestUnlockedLevel;
+  }
+
+  public static isLevelCompleted(category: CategoryId, level: number): boolean {
+    const progress = this.getCategoryProgress(category);
+    return progress.completedLevels.includes(level);
+  }
+
+  public static markLevelCompleted(category: CategoryId, level: number): CategoryProgressMap {
+    const progress = this.loadCategoryProgress();
+    const catData = progress[category] || { highestUnlockedLevel: 1, completedLevels: [] };
+    const maxLevels = CATEGORIES_CONFIG[category]?.totalLevels || 28;
+
+    if (!catData.completedLevels.includes(level)) {
+      catData.completedLevels.push(level);
+    }
+
+    // Unlock subsequent level if valid
+    const nextLevel = level + 1;
+    if (nextLevel <= maxLevels && nextLevel > catData.highestUnlockedLevel) {
+      catData.highestUnlockedLevel = nextLevel;
+    }
+
+    progress[category] = catData;
+    this.saveCategoryProgress(progress);
+    return progress;
+  }
+
+  /**
    * Remove ads status
    */
   public static hasRemovedAds(): boolean {
@@ -226,5 +305,6 @@ export class StorageService {
     safeRemoveItem(STORAGE_KEYS.REMOVE_ADS_PURCHASED);
     safeRemoveItem(STORAGE_KEYS.COINS);
     safeRemoveItem(STORAGE_KEYS.ONBOARDING_COMPLETED);
+    safeRemoveItem(STORAGE_KEYS.CATEGORY_PROGRESS);
   }
 }

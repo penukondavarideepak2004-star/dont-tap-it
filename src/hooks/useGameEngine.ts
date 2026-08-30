@@ -1,17 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { soundEngine } from '../audio/SoundEngine';
 import { GameManager, GameState } from '../core/GameManager';
+import { CategoryId } from '../models/types';
+import { CATEGORIES_CONFIG } from '../utils/constants';
 
-export function useGameEngine(isDaily = false, dailySeed?: string, initialRound = 0) {
+export function useGameEngine(
+  isDaily = false,
+  dailySeed?: string,
+  category: CategoryId = 'beginner',
+  level = 1
+) {
   const managerRef = useRef<GameManager | null>(null);
   if (!managerRef.current) {
-    managerRef.current = new GameManager(isDaily, dailySeed);
+    managerRef.current = new GameManager(isDaily, dailySeed, category, level);
   }
 
   const manager = managerRef.current;
+  const totalQuestions = CATEGORIES_CONFIG[category]?.questionsPerLevel || 1;
+
   const [state, setState] = useState<GameState>(() => ({
     currentChallenge: null,
-    round: initialRound > 0 ? initialRound : 0,
+    round: 0,
     score: 0,
     bestScore: 0,
     combo: 0,
@@ -19,10 +28,15 @@ export function useGameEngine(isDaily = false, dailySeed?: string, initialRound 
     timeRemaining: 3.2,
     timeLimit: 3.2,
     isGameOver: false,
+    isLevelComplete: false,
     isPaused: false,
     isNewBest: false,
     hasContinuedWithAd: false,
     isDaily,
+    category,
+    level,
+    questionIndex: 1,
+    totalQuestions,
     totalReactionMs: 0,
     correctAnswersInRun: 0,
     wrongAnswersInRun: 0,
@@ -43,14 +57,14 @@ export function useGameEngine(isDaily = false, dailySeed?: string, initialRound 
     manager.subscribe((newState) => {
       setState(newState);
     });
-    manager.start(initialRound);
+    manager.start(category, level, 1);
 
     return () => {
       manager.destroy();
     };
-  }, [manager, initialRound]);
+  }, [manager, category, level]);
 
-  // High-performance, rock-solid 60fps single-threaded animation loop
+  // High-performance single-threaded animation loop
   useEffect(() => {
     let animFrameId: number;
     let isLoopRunning = true;
@@ -63,7 +77,12 @@ export function useGameEngine(isDaily = false, dailySeed?: string, initialRound 
       lastTickRef.current = now;
 
       // Only update active timer during PLAYING state
-      if (!currentState.isPaused && !currentState.isGameOver && currentState.lifecycleState === 'PLAYING') {
+      if (
+        !currentState.isPaused &&
+        !currentState.isGameOver &&
+        !currentState.isLevelComplete &&
+        currentState.lifecycleState === 'PLAYING'
+      ) {
         if (deltaSec > 0 && deltaSec < 0.25) {
           manager.updateTimer(deltaSec);
         }
@@ -79,7 +98,11 @@ export function useGameEngine(isDaily = false, dailySeed?: string, initialRound 
         }
       }
 
-      if (!currentState.isGameOver && currentState.lifecycleState !== 'DESTROYED') {
+      if (
+        !currentState.isGameOver &&
+        !currentState.isLevelComplete &&
+        currentState.lifecycleState !== 'DESTROYED'
+      ) {
         animFrameId = requestAnimationFrame(loop);
       }
     };
@@ -93,13 +116,19 @@ export function useGameEngine(isDaily = false, dailySeed?: string, initialRound 
     };
   }, [manager]);
 
-  const handleObjectTap = useCallback((id: string) => {
-    manager.handleObjectTap(id);
-  }, [manager]);
+  const handleObjectTap = useCallback(
+    (id: string) => {
+      manager.handleObjectTap(id);
+    },
+    [manager]
+  );
 
-  const handleBackgroundTap = useCallback(() => {
-    manager.handleBackgroundTap();
-  }, [manager]);
+  const handleWordOptionTap = useCallback(
+    (word: string) => {
+      manager.handleWordOptionTap(word);
+    },
+    [manager]
+  );
 
   const pause = useCallback(() => {
     manager.pause();
@@ -110,10 +139,13 @@ export function useGameEngine(isDaily = false, dailySeed?: string, initialRound 
     manager.resume();
   }, [manager]);
 
-  const restart = useCallback(() => {
-    lastTickRef.current = performance.now();
-    manager.start();
-  }, [manager]);
+  const restart = useCallback(
+    (cat: CategoryId = category, lvl: number = level) => {
+      lastTickRef.current = performance.now();
+      manager.start(cat, lvl, 1);
+    },
+    [manager, category, level]
+  );
 
   const continueRun = useCallback(() => {
     lastTickRef.current = performance.now();
@@ -128,7 +160,7 @@ export function useGameEngine(isDaily = false, dailySeed?: string, initialRound 
     state,
     manager,
     handleObjectTap,
-    handleBackgroundTap,
+    handleWordOptionTap,
     pause,
     resume,
     restart,

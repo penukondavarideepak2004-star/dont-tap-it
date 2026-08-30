@@ -2,9 +2,48 @@
 // DON'T TAP IT! — Master Data Models & Types
 // ==========================================
 
-export type ShapeType = 'circle' | 'square' | 'triangle' | 'diamond' | 'star';
+export type CategoryId = 'beginner' | 'genius' | 'extreme';
 
-export type GameColorName = 'red' | 'blue' | 'green' | 'yellow' | 'purple' | 'orange' | 'pink' | 'cyan' | 'lime' | 'amber';
+export interface CategoryDefinition {
+  id: CategoryId;
+  name: string;
+  subtitle: string;
+  description: string;
+  totalLevels: number;
+  questionsPerLevel: number;
+  badge: string;
+  accentColor: string;
+  bgGradient: string;
+}
+
+export interface CategoryProgressData {
+  highestUnlockedLevel: number;
+  completedLevels: number[];
+}
+
+export type CategoryProgressMap = Record<CategoryId, CategoryProgressData>;
+
+export type ShapeType =
+  | 'circle'
+  | 'square'
+  | 'triangle'
+  | 'rectangle'
+  | 'oval'
+  | 'diamond'
+  | 'pentagon'
+  | 'hexagon'
+  | 'star'
+  | 'heart';
+
+export type RainbowColorName = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'indigo' | 'violet';
+
+export type GameColorName =
+  | RainbowColorName
+  | 'purple'
+  | 'pink'
+  | 'cyan'
+  | 'lime'
+  | 'amber';
 
 export interface GameColorDef {
   name: GameColorName;
@@ -21,7 +60,7 @@ export interface GameObject {
   id: string;
   shape: ShapeType;
   color: GameColorName;
-  size: 'small' | 'medium' | 'large'; // pixel diameters: 54, 72, 92
+  size: 'small' | 'medium' | 'large'; // pixel diameters: 52, 70, 94
   position: {
     x: number; // percentage 0-100 inside container
     y: number; // percentage 0-100 inside container
@@ -30,15 +69,17 @@ export interface GameObject {
   spawnDelayMs: number;
   label?: string; // e.g. for numbered or memory challenges
   isOdd?: boolean;
-  spawnOrder: number; // 0, 1, 2... for memory rules
+  spawnOrder: number;
 }
 
 export type ChallengeType = 
   | 'COLOR'
+  | 'SHAPE'
+  | 'POSITION'
+  | 'EXTREME_WORD'
   | 'SIZE'
   | 'ODD_ONE'
   | 'MOVEMENT'
-  | 'POSITION'
   | 'COUNT'
   | 'MEMORY'
   | 'NEGATION';
@@ -46,20 +87,26 @@ export type ChallengeType =
 export interface Challenge {
   id: string;
   type: ChallengeType;
+  category?: CategoryId;
+  level?: number;
+  questionIndex?: number;
+  totalQuestions?: number;
   instruction: string;
   subInstruction?: string;
   highlightColor?: string;
   objects: GameObject[];
+  options?: string[]; // 4 word choices for Extreme Genius
+  correctWordAnswer?: string;
   validTargetIds: string[]; // Strict validation: length === 1, OR 0 if DO NOT TAP ANYTHING
-  isNoTapChallenge: boolean; // For "DON'T TAP ANYTHING"
+  isNoTapChallenge: boolean;
   timeLimitSeconds: number;
   difficultyLevel: number;
   createdAt: number;
 }
 
 export interface UserProfile {
-  id: string; // Immutable unique ID e.g. "usr_..."
-  name: string; // First Name or Display Name
+  id: string;
+  name: string;
   firstName?: string;
   phoneNumber?: string;
   email?: string;
@@ -123,6 +170,8 @@ export type ScreenName =
   | 'forgot_password'
   | 'onboarding'
   | 'home'
+  | 'category_select'
+  | 'level_select'
   | 'game'
   | 'game_over'
   | 'daily_challenge'
@@ -144,6 +193,9 @@ export interface GameRunResult {
   fastestReactionMs: number;
   isDaily: boolean;
   continuedWithAd: boolean;
+  category?: CategoryId;
+  level?: number;
+  isLevelComplete?: boolean;
 }
 
 export interface AnalyticsEvent {

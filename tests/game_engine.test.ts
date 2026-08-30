@@ -50,7 +50,7 @@ describe("DON'T TAP IT! — GameManager & Daily Seed Tests", () => {
 
   it('should handle Second Chance continuation correctly without resetting current score', () => {
     const manager = new GameManager();
-    manager.start();
+    manager.start('genius', 1, 1);
 
     // Award initial points
     const challenge = (manager as unknown as { state: { currentChallenge: { validTargetIds: string[]; isNoTapChallenge: boolean } } }).state.currentChallenge;

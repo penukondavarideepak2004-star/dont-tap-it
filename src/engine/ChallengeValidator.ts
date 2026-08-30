@@ -6,6 +6,7 @@ import { Challenge } from '../models/types';
  * 1. Exactly ONE valid target (or 0 for DON'T TAP ANYTHING).
  * 2. All objects stay safely inside bounds (5% to 95%).
  * 3. Consistent, touch-safe minimum distance between all objects.
+ * 4. Options and word answer integrity for EXTREME_WORD challenges.
  */
 export class ChallengeValidator {
   /**
@@ -13,11 +14,19 @@ export class ChallengeValidator {
    */
   public static validate(challenge: Challenge): boolean {
     if (!challenge) return false;
+    if (!challenge.instruction || challenge.instruction.trim().length === 0) return false;
     if (!challenge.objects || challenge.objects.length === 0) return false;
 
     // "DON'T TAP ANYTHING" challenge
     if (challenge.isNoTapChallenge) {
       return challenge.validTargetIds.length === 0;
+    }
+
+    // Extreme Word Challenge: 1 shape + 4 word choices
+    if (challenge.type === 'EXTREME_WORD') {
+      if (!challenge.options || challenge.options.length !== 4) return false;
+      if (!challenge.correctWordAnswer || !challenge.options.includes(challenge.correctWordAnswer)) return false;
+      return challenge.objects.length === 1;
     }
 
     // Standard challenges must have exactly ONE target

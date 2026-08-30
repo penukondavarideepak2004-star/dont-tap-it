@@ -3,11 +3,19 @@ import { soundEngine } from '../audio/SoundEngine';
 import { AntiRepetitionBuffer } from '../engine/AntiRepetitionBuffer';
 import { ChallengeGenerator } from '../engine/ChallengeGenerator';
 import { ScoreManager } from '../engine/ScoreManager';
-import { Challenge, GameRunResult } from '../models/types';
+import { CategoryId, Challenge, GameRunResult } from '../models/types';
 import { analytics } from '../services/AnalyticsService';
 import { StorageService } from '../services/StorageService';
+import { CATEGORIES_CONFIG } from '../utils/constants';
 
-export type GameLifecycleState = 'IDLE' | 'STARTING' | 'PLAYING' | 'PAUSED' | 'GAME_OVER' | 'DESTROYED';
+export type GameLifecycleState =
+  | 'IDLE'
+  | 'STARTING'
+  | 'PLAYING'
+  | 'PAUSED'
+  | 'LEVEL_COMPLETE'
+  | 'GAME_OVER'
+  | 'DESTROYED';
 
 export interface GameState {
   currentChallenge: Challenge | null;
@@ -19,10 +27,15 @@ export interface GameState {
   timeRemaining: number;
   timeLimit: number;
   isGameOver: boolean;
+  isLevelComplete: boolean;
   isPaused: boolean;
   isNewBest: boolean;
   hasContinuedWithAd: boolean;
   isDaily: boolean;
+  category: CategoryId;
+  level: number;
+  questionIndex: number;
+  totalQuestions: number;
   totalReactionMs: number;
   correctAnswersInRun: number;
   wrongAnswersInRun: number;
@@ -41,10 +54,17 @@ export class GameManager {
   private isProcessingTap = false;
   private currentSessionId = 0;
 
-  constructor(isDaily = false, dailySeed?: string) {
+  constructor(
+    isDaily = false,
+    dailySeed?: string,
+    category: CategoryId = 'beginner',
+    level = 1
+  ) {
     const stats = StorageService.loadStats();
     this.dailySeed = dailySeed;
     this.currentSessionId = 1;
+    const totalQuestions = CATEGORIES_CONFIG[category]?.questionsPerLevel || 1;
+
     this.state = {
       currentChallenge: null,
       round: 0,
@@ -55,10 +75,15 @@ export class GameManager {
       timeRemaining: 3.2,
       timeLimit: 3.2,
       isGameOver: false,
+      isLevelComplete: false,
       isPaused: false,
       isNewBest: false,
       hasContinuedWithAd: false,
       isDaily,
+      category,
+      level,
+      questionIndex: 1,
+      totalQuestions,
       totalReactionMs: 0,
       correctAnswersInRun: 0,
       wrongAnswersInRun: 0,
@@ -80,20 +105,30 @@ export class GameManager {
     }
   }
 
-  public start(initialRound = 0) {
+  public start(
+    category: CategoryId = 'beginner',
+    level = 1,
+    initialQuestion = 1
+  ) {
     this.currentSessionId++;
     this.antiRepetition.reset();
     this.isProcessingTap = false;
     const stats = StorageService.loadStats();
+    const totalQuestions = CATEGORIES_CONFIG[category]?.questionsPerLevel || 1;
 
     this.state = {
       ...this.state,
-      round: Math.max(0, initialRound - 1),
+      category,
+      level,
+      questionIndex: initialQuestion,
+      totalQuestions,
+      round: 0,
       score: 0,
       bestScore: this.state.isDaily ? stats.dailyBest : stats.bestScore,
       combo: 0,
       maxCombo: 0,
       isGameOver: false,
+      isLevelComplete: false,
       isPaused: false,
       isNewBest: false,
       hasContinuedWithAd: false,
@@ -107,15 +142,21 @@ export class GameManager {
     };
 
     analytics.logEvent('game_started', {
+      category,
+      level,
       isDaily: this.state.isDaily,
       sessionId: this.currentSessionId,
     });
 
-    this.nextRound();
+    this.loadQuestion();
   }
 
   public pause() {
-    if (this.state.isGameOver || this.state.lifecycleState === 'DESTROYED') {
+    if (
+      this.state.isGameOver ||
+      this.state.isLevelComplete ||
+      this.state.lifecycleState === 'DESTROYED'
+    ) {
       return;
     }
     this.state.isPaused = true;
@@ -124,7 +165,11 @@ export class GameManager {
   }
 
   public resume() {
-    if (this.state.isGameOver || this.state.lifecycleState === 'DESTROYED') {
+    if (
+      this.state.isGameOver ||
+      this.state.isLevelComplete ||
+      this.state.lifecycleState === 'DESTROYED'
+    ) {
       return;
     }
     this.state.isPaused = false;
@@ -139,20 +184,34 @@ export class GameManager {
     this.onStateChange = undefined;
   }
 
-  private nextRound() {
-    if (this.state.isGameOver || this.state.lifecycleState === 'DESTROYED') {
+  private loadQuestion() {
+    if (
+      this.state.isGameOver ||
+      this.state.isLevelComplete ||
+      this.state.lifecycleState === 'DESTROYED'
+    ) {
       return;
     }
 
     this.isProcessingTap = false;
     this.state.round++;
+
     let challenge: Challenge;
     let attempts = 0;
 
     do {
       challenge = this.state.isDaily && this.dailySeed
-        ? ChallengeGenerator.generate(this.state.round, `${this.dailySeed}_rnd_${this.state.round}_att_${attempts}`)
-        : ChallengeGenerator.generate(this.state.round);
+        ? ChallengeGenerator.generateForCategory(
+            this.state.category,
+            this.state.level,
+            this.state.questionIndex,
+            `${this.dailySeed}_${this.state.level}_${this.state.questionIndex}_att_${attempts}`
+          )
+        : ChallengeGenerator.generateForCategory(
+            this.state.category,
+            this.state.level,
+            this.state.questionIndex
+          );
       attempts++;
     } while (this.antiRepetition.isTooSimilar(challenge) && attempts < 10);
 
@@ -164,9 +223,10 @@ export class GameManager {
     this.challengeStartTime = performance.now();
 
     analytics.logEvent('challenge_shown', {
+      category: this.state.category,
+      level: this.state.level,
+      questionIndex: this.state.questionIndex,
       type: challenge.type,
-      round: this.state.round,
-      difficulty: challenge.difficultyLevel,
       sessionId: this.currentSessionId,
     });
 
@@ -174,11 +234,12 @@ export class GameManager {
   }
 
   /**
-   * Handles user tapping an object with race-condition & session guard
+   * Handles user tapping an object in the arena
    */
   public handleObjectTap(objectId: string) {
     if (
       this.state.isGameOver ||
+      this.state.isLevelComplete ||
       this.state.isPaused ||
       this.state.lifecycleState !== 'PLAYING' ||
       !this.state.currentChallenge ||
@@ -187,11 +248,17 @@ export class GameManager {
       return;
     }
 
+    // In Extreme Word challenge, object tapping is disabled (player taps word buttons)
+    if (this.state.currentChallenge.type === 'EXTREME_WORD') {
+      return;
+    }
+
     this.isProcessingTap = true;
     const reactionTimeMs = Math.max(0, performance.now() - this.challengeStartTime);
     const challenge = this.state.currentChallenge;
 
-    const isCorrect = !challenge.isNoTapChallenge && challenge.validTargetIds.includes(objectId);
+    const isCorrect =
+      !challenge.isNoTapChallenge && challenge.validTargetIds.includes(objectId);
 
     if (isCorrect) {
       this.handleCorrectAnswer(reactionTimeMs);
@@ -206,6 +273,7 @@ export class GameManager {
   public handleBackgroundTap() {
     if (
       this.state.isGameOver ||
+      this.state.isLevelComplete ||
       this.state.isPaused ||
       this.state.lifecycleState !== 'PLAYING' ||
       !this.state.currentChallenge ||
@@ -221,11 +289,12 @@ export class GameManager {
   }
 
   /**
-   * Handles timer update tick with safety clamping and session lock
+   * Handles user tapping a word choice button (Extreme Genius category)
    */
-  public updateTimer(deltaTimeSeconds: number) {
+  public handleWordOptionTap(word: string) {
     if (
       this.state.isGameOver ||
+      this.state.isLevelComplete ||
       this.state.isPaused ||
       this.state.lifecycleState !== 'PLAYING' ||
       !this.state.currentChallenge ||
@@ -234,7 +303,39 @@ export class GameManager {
       return;
     }
 
-    this.state.timeRemaining = Math.max(0, this.state.timeRemaining - deltaTimeSeconds);
+    this.isProcessingTap = true;
+    const reactionTimeMs = Math.max(0, performance.now() - this.challengeStartTime);
+    const challenge = this.state.currentChallenge;
+
+    const isCorrect =
+      challenge.type === 'EXTREME_WORD' && challenge.correctWordAnswer === word;
+
+    if (isCorrect) {
+      this.handleCorrectAnswer(reactionTimeMs);
+    } else {
+      this.handleWrongAnswer('wrong_word_tap');
+    }
+  }
+
+  /**
+   * Handles timer update tick
+   */
+  public updateTimer(deltaTimeSeconds: number) {
+    if (
+      this.state.isGameOver ||
+      this.state.isLevelComplete ||
+      this.state.isPaused ||
+      this.state.lifecycleState !== 'PLAYING' ||
+      !this.state.currentChallenge ||
+      this.isProcessingTap
+    ) {
+      return;
+    }
+
+    this.state.timeRemaining = Math.max(
+      0,
+      this.state.timeRemaining - deltaTimeSeconds
+    );
 
     if (this.state.timeRemaining <= 0) {
       this.isProcessingTap = true;
@@ -291,19 +392,53 @@ export class GameManager {
     }
 
     analytics.logEvent('challenge_correct', {
-      round: this.state.round,
+      category: this.state.category,
+      level: this.state.level,
+      questionIndex: this.state.questionIndex,
       reactionMs: roundReaction,
       points: calc.totalPoints,
       combo: this.state.combo,
       sessionId: this.currentSessionId,
     });
 
-    this.nextRound();
+    // Check if this was the last question in the level
+    if (this.state.questionIndex >= this.state.totalQuestions) {
+      this.handleLevelComplete();
+    } else {
+      this.state.questionIndex++;
+      this.loadQuestion();
+    }
+  }
+
+  private handleLevelComplete() {
+    this.state.isLevelComplete = true;
+    this.state.lifecycleState = 'LEVEL_COMPLETE';
+
+    soundEngine.playLevelUp();
+    hapticEngine.heavy();
+
+    // Mark completed & unlock next level in Storage
+    StorageService.markLevelCompleted(this.state.category, this.state.level);
+    this.persistRunStats();
+
+    analytics.logEvent('level_complete', {
+      category: this.state.category,
+      level: this.state.level,
+      score: this.state.score,
+      combo: this.state.combo,
+      sessionId: this.currentSessionId,
+    });
+
+    this.emit();
   }
 
   private handleWrongAnswer(reason: string) {
-    // Strictly idempotent Game Over guard
-    if (this.state.isGameOver || this.state.lifecycleState === 'GAME_OVER' || this.state.lifecycleState === 'DESTROYED') {
+    if (
+      this.state.isGameOver ||
+      this.state.isLevelComplete ||
+      this.state.lifecycleState === 'GAME_OVER' ||
+      this.state.lifecycleState === 'DESTROYED'
+    ) {
       return;
     }
 
@@ -316,7 +451,9 @@ export class GameManager {
     hapticEngine.wrong();
 
     analytics.logEvent('challenge_wrong', {
-      round: this.state.round,
+      category: this.state.category,
+      level: this.state.level,
+      questionIndex: this.state.questionIndex,
       reason,
       score: this.state.score,
       sessionId: this.currentSessionId,
@@ -330,12 +467,16 @@ export class GameManager {
     try {
       const stats = StorageService.loadStats();
       stats.gamesPlayed++;
-      stats.totalTaps += this.state.correctAnswersInRun + this.state.wrongAnswersInRun;
+      stats.totalTaps +=
+        this.state.correctAnswersInRun + this.state.wrongAnswersInRun;
       stats.correctAnswers += this.state.correctAnswersInRun;
       stats.wrongAnswers += this.state.wrongAnswersInRun;
       stats.totalReactionMs += this.state.totalReactionMs;
 
-      if (this.state.fastestReactionMs < stats.fastestReactionMs || stats.fastestReactionMs === 0) {
+      if (
+        this.state.fastestReactionMs < stats.fastestReactionMs ||
+        stats.fastestReactionMs === 0
+      ) {
         stats.fastestReactionMs = this.state.fastestReactionMs;
       }
 
@@ -367,8 +508,11 @@ export class GameManager {
   }
 
   public continueRun(): boolean {
-    // Only 1 continuation per run allowed
-    if (this.state.hasContinuedWithAd || !this.state.isGameOver || this.state.lifecycleState !== 'GAME_OVER') {
+    if (
+      this.state.hasContinuedWithAd ||
+      !this.state.isGameOver ||
+      this.state.lifecycleState !== 'GAME_OVER'
+    ) {
       return false;
     }
 
@@ -378,14 +522,17 @@ export class GameManager {
     this.state.timeRemaining = this.state.timeLimit;
     this.challengeStartTime = performance.now();
     this.isProcessingTap = false;
-    this.nextRound();
+    this.loadQuestion();
     return true;
   }
 
   public getRunResult(): GameRunResult {
-    const avgReaction = this.state.correctAnswersInRun > 0
-      ? Math.round(this.state.totalReactionMs / this.state.correctAnswersInRun)
-      : 0;
+    const avgReaction =
+      this.state.correctAnswersInRun > 0
+        ? Math.round(
+            this.state.totalReactionMs / this.state.correctAnswersInRun
+          )
+        : 0;
 
     return {
       score: this.state.score,
@@ -393,11 +540,17 @@ export class GameManager {
       isNewBest: this.state.isNewBest,
       combo: this.state.combo,
       maxCombo: this.state.maxCombo,
-      roundsCompleted: Math.max(0, this.state.round - 1),
+      roundsCompleted: this.state.correctAnswersInRun,
       averageReactionMs: avgReaction,
-      fastestReactionMs: this.state.fastestReactionMs === Infinity ? 0 : this.state.fastestReactionMs,
+      fastestReactionMs:
+        this.state.fastestReactionMs === Infinity
+          ? 0
+          : this.state.fastestReactionMs,
       isDaily: this.state.isDaily,
       continuedWithAd: this.state.hasContinuedWithAd,
+      category: this.state.category,
+      level: this.state.level,
+      isLevelComplete: this.state.isLevelComplete,
     };
   }
 }

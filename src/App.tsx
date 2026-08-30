@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react';
-import { AppSettings, GameRunResult, PlayerStats, ScreenName, UserProfile } from './models/types';
+import {
+  AppSettings,
+  CategoryId,
+  PlayerStats,
+  ScreenName,
+  UserProfile,
+} from './models/types';
 import { THEMES } from './utils/constants';
 import { StorageService } from './services/StorageService';
 import { AuthService } from './services/AuthService';
@@ -10,8 +16,9 @@ import { SplashScreen } from './screens/SplashScreen';
 import { AuthScreen } from './screens/AuthScreen';
 import { OnboardingScreen } from './screens/OnboardingScreen';
 import { HomeScreen } from './screens/HomeScreen';
+import { CategorySelectScreen } from './screens/CategorySelectScreen';
+import { LevelSelectScreen } from './screens/LevelSelectScreen';
 import { GameScreen } from './screens/GameScreen';
-import { GameOverScreen } from './screens/GameOverScreen';
 import { DailyChallengeScreen } from './screens/DailyChallengeScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
 import { StatisticsScreen } from './screens/StatisticsScreen';
@@ -25,9 +32,12 @@ export function App() {
   const [user, setUser] = useState<UserProfile>(() => StorageService.loadUser());
   const [stats, setStats] = useState<PlayerStats>(() => StorageService.loadStats());
   const [settings, setSettings] = useState<AppSettings>(() => StorageService.loadSettings());
-  const [lastGameResult, setLastGameResult] = useState<GameRunResult | null>(null);
   const [isDailyGame, setIsDailyGame] = useState(false);
   const [dailySeed, setDailySeed] = useState<string | undefined>(undefined);
+
+  // Category and Level Navigation State
+  const [selectedCategory, setSelectedCategory] = useState<CategoryId>('beginner');
+  const [selectedLevel, setSelectedLevel] = useState<number>(1);
 
   useEffect(() => {
     soundEngine.setSoundEnabled(settings.soundEnabled);
@@ -60,7 +70,20 @@ export function App() {
     setCurrentScreen('home');
   };
 
-  const handleStartGame = () => {
+  // HOME -> PROCEED -> CATEGORY SELECTION
+  const handleProceedFromHome = () => {
+    setCurrentScreen('category_select');
+  };
+
+  // CATEGORY -> LEVEL SELECTION
+  const handleSelectCategory = (cat: CategoryId) => {
+    setSelectedCategory(cat);
+    setCurrentScreen('level_select');
+  };
+
+  // LEVEL SELECTION -> GAMEPLAY
+  const handleLaunchLevel = (lvl: number) => {
+    setSelectedLevel(lvl);
     setIsDailyGame(false);
     setDailySeed(undefined);
     setCurrentScreen('game');
@@ -69,16 +92,8 @@ export function App() {
   const handleStartDaily = (seed: string) => {
     setIsDailyGame(true);
     setDailySeed(seed);
-    setCurrentScreen('game');
-  };
-
-  const handleGameOver = (result: GameRunResult) => {
-    setLastGameResult(result);
-    setStats(StorageService.loadStats());
-    setCurrentScreen('game_over');
-  };
-
-  const handleContinueWithAd = () => {
+    setSelectedCategory('beginner');
+    setSelectedLevel(1);
     setCurrentScreen('game');
   };
 
@@ -116,25 +131,33 @@ export function App() {
             user={user}
             stats={stats}
             onNavigate={(screen) => setCurrentScreen(screen)}
-            onStartGame={handleStartGame}
+            onProceed={handleProceedFromHome}
+          />
+        )}
+
+        {currentScreen === 'category_select' && (
+          <CategorySelectScreen
+            onSelectCategory={handleSelectCategory}
+            onBack={() => setCurrentScreen('home')}
+          />
+        )}
+
+        {currentScreen === 'level_select' && (
+          <LevelSelectScreen
+            category={selectedCategory}
+            onLaunchLevel={handleLaunchLevel}
+            onBack={() => setCurrentScreen('category_select')}
           />
         )}
 
         {currentScreen === 'game' && (
           <GameScreen
             settings={settings}
+            category={selectedCategory}
+            level={selectedLevel}
             isDaily={isDailyGame}
             dailySeed={dailySeed}
-            onGameOver={handleGameOver}
-            onGoHome={() => setCurrentScreen('home')}
-          />
-        )}
-
-        {currentScreen === 'game_over' && lastGameResult && (
-          <GameOverScreen
-            result={lastGameResult}
-            onRetry={handleStartGame}
-            onContinueWithAd={handleContinueWithAd}
+            onGoToLevelSelect={() => setCurrentScreen('level_select')}
             onGoHome={() => setCurrentScreen('home')}
           />
         )}
@@ -163,7 +186,7 @@ export function App() {
         {currentScreen === 'statistics' && (
           <StatisticsScreen
             stats={stats}
-            onPlayGame={handleStartGame}
+            onPlayGame={handleProceedFromHome}
             onBack={() => setCurrentScreen('home')}
           />
         )}
@@ -189,7 +212,7 @@ export function App() {
 
         {currentScreen === 'how_to_play' && (
           <HowToPlayScreen
-            onPlayGame={handleStartGame}
+            onPlayGame={handleProceedFromHome}
             onBack={() => setCurrentScreen('home')}
           />
         )}

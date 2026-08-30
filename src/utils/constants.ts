@@ -1,4 +1,17 @@
-import { AppSettings, GameColorDef, GameColorName, PlayerStats, ShapeType, ThemeDefinition, ThemeId, UserProfile } from '../models/types';
+import {
+  AppSettings,
+  CategoryDefinition,
+  CategoryId,
+  CategoryProgressMap,
+  GameColorDef,
+  GameColorName,
+  PlayerStats,
+  RainbowColorName,
+  ShapeType,
+  ThemeDefinition,
+  ThemeId,
+  UserProfile,
+} from '../models/types';
 
 export const GAME_COLORS: Record<GameColorName, GameColorDef> = {
   red: {
@@ -9,21 +22,13 @@ export const GAME_COLORS: Record<GameColorName, GameColorDef> = {
     label: 'RED',
     glow: 'rgba(255, 46, 99, 0.45)',
   },
-  blue: {
-    name: 'blue',
-    hex: '#08D9D6',
-    bgClass: 'bg-[#08D9D6]',
-    borderClass: 'border-[#08D9D6]',
-    label: 'BLUE',
-    glow: 'rgba(8, 217, 214, 0.45)',
-  },
-  green: {
-    name: 'green',
-    hex: '#25E68C',
-    bgClass: 'bg-[#25E68C]',
-    borderClass: 'border-[#25E68C]',
-    label: 'GRE',
-    glow: 'rgba(37, 230, 140, 0.45)',
+  orange: {
+    name: 'orange',
+    hex: '#FF9F1C',
+    bgClass: 'bg-[#FF9F1C]',
+    borderClass: 'border-[#FF9F1C]',
+    label: 'ORA',
+    glow: 'rgba(255, 159, 28, 0.45)',
   },
   yellow: {
     name: 'yellow',
@@ -33,6 +38,38 @@ export const GAME_COLORS: Record<GameColorName, GameColorDef> = {
     label: 'YEL',
     glow: 'rgba(255, 222, 89, 0.45)',
   },
+  green: {
+    name: 'green',
+    hex: '#25E68C',
+    bgClass: 'bg-[#25E68C]',
+    borderClass: 'border-[#25E68C]',
+    label: 'GRE',
+    glow: 'rgba(37, 230, 140, 0.45)',
+  },
+  blue: {
+    name: 'blue',
+    hex: '#08D9D6',
+    bgClass: 'bg-[#08D9D6]',
+    borderClass: 'border-[#08D9D6]',
+    label: 'BLU',
+    glow: 'rgba(8, 217, 214, 0.45)',
+  },
+  indigo: {
+    name: 'indigo',
+    hex: '#4F46E5',
+    bgClass: 'bg-[#4F46E5]',
+    borderClass: 'border-[#4F46E5]',
+    label: 'IND',
+    glow: 'rgba(79, 70, 229, 0.45)',
+  },
+  violet: {
+    name: 'violet',
+    hex: '#A855F7',
+    bgClass: 'bg-[#A855F7]',
+    borderClass: 'border-[#A855F7]',
+    label: 'VIO',
+    glow: 'rgba(168, 85, 247, 0.45)',
+  },
   purple: {
     name: 'purple',
     hex: '#9D4EDD',
@@ -40,14 +77,6 @@ export const GAME_COLORS: Record<GameColorName, GameColorDef> = {
     borderClass: 'border-[#9D4EDD]',
     label: 'PUR',
     glow: 'rgba(157, 78, 221, 0.45)',
-  },
-  orange: {
-    name: 'orange',
-    hex: '#FF9F1C',
-    bgClass: 'bg-[#FF9F1C]',
-    borderClass: 'border-[#FF9F1C]',
-    label: 'ORA',
-    glow: 'rgba(255, 159, 28, 0.45)',
   },
   pink: {
     name: 'pink',
@@ -83,11 +112,109 @@ export const GAME_COLORS: Record<GameColorName, GameColorDef> = {
   },
 };
 
-export const COLOR_NAMES: GameColorName[] = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan', 'lime', 'amber'];
+export const RAINBOW_COLORS: RainbowColorName[] = [
+  'red',
+  'orange',
+  'yellow',
+  'green',
+  'blue',
+  'indigo',
+  'violet',
+];
+
+export const COLOR_NAMES: GameColorName[] = [
+  'red',
+  'orange',
+  'yellow',
+  'green',
+  'blue',
+  'indigo',
+  'violet',
+  'purple',
+  'pink',
+  'cyan',
+  'lime',
+  'amber',
+];
 export const COLOR_KEYS = COLOR_NAMES;
 
-export const SHAPE_TYPES: ShapeType[] = ['circle', 'square', 'triangle', 'diamond', 'star'];
-export const SHAPE_KEYS = SHAPE_TYPES;
+export const GEOMETRIC_SHAPES: ShapeType[] = [
+  'circle',
+  'square',
+  'triangle',
+  'rectangle',
+  'oval',
+  'diamond',
+  'pentagon',
+  'hexagon',
+  'star',
+  'heart',
+];
+export const SHAPE_KEYS = GEOMETRIC_SHAPES;
+
+export const SHAPE_DISPLAY_NAMES: Record<ShapeType, string> = {
+  circle: 'CIRCLE',
+  square: 'SQUARE',
+  triangle: 'TRIANGLE',
+  rectangle: 'RECTANGLE',
+  oval: 'OVAL',
+  diamond: 'DIAMOND',
+  pentagon: 'PENTAGON',
+  hexagon: 'HEXAGON',
+  star: 'STAR',
+  heart: 'HEART',
+};
+
+export const CATEGORIES_CONFIG: Record<CategoryId, CategoryDefinition> = {
+  beginner: {
+    id: 'beginner',
+    name: 'BEGINNER',
+    subtitle: 'Learn the basics',
+    description: 'Learn the basics',
+    totalLevels: 28,
+    questionsPerLevel: 1,
+    badge: 'Levels 1–28',
+    accentColor: '#25E68C',
+    bgGradient: 'from-emerald-500/20 via-teal-500/10 to-transparent',
+  },
+  genius: {
+    id: 'genius',
+    name: 'GENIUS',
+    subtitle: 'Think fast. React faster.',
+    description: 'Think fast. React faster.',
+    totalLevels: 14,
+    questionsPerLevel: 10,
+    badge: 'Levels 1–14 • 10 Qs/Lvl',
+    accentColor: '#00F0FF',
+    bgGradient: 'from-cyan-500/20 via-blue-500/10 to-transparent',
+  },
+  extreme: {
+    id: 'extreme',
+    name: 'EXTREME GENIUS',
+    subtitle: 'Only the sharpest minds survive.',
+    description: 'Only the sharpest minds survive.',
+    totalLevels: 6,
+    questionsPerLevel: 15,
+    badge: 'Levels 1–6 • 15 Qs/Lvl',
+    accentColor: '#FF2E63',
+    bgGradient: 'from-rose-500/20 via-pink-500/10 to-transparent',
+  },
+};
+
+export const INITIAL_CATEGORY_PROGRESS: CategoryProgressMap = {
+  beginner: {
+    highestUnlockedLevel: 1,
+    completedLevels: [],
+  },
+  genius: {
+    highestUnlockedLevel: 1,
+    completedLevels: [],
+  },
+  extreme: {
+    highestUnlockedLevel: 1,
+    completedLevels: [],
+  },
+};
 
 export const THEMES: Record<ThemeId, ThemeDefinition> = {
   classic: {

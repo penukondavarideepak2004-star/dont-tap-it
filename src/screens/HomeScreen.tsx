@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart2, Calendar, HelpCircle, Play, Settings, ShoppingBag, Trophy, Zap } from 'lucide-react';
+import { ArrowRight, BarChart2, Calendar, HelpCircle, Settings, ShoppingBag, Trophy, Zap } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { PlayerStats, ScreenName, UserProfile } from '../models/types';
 import { StorageService } from '../services/StorageService';
@@ -8,14 +8,14 @@ interface HomeScreenProps {
   user: UserProfile;
   stats: PlayerStats;
   onNavigate: (screen: ScreenName) => void;
-  onStartGame: () => void;
+  onProceed: () => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   user,
   stats,
   onNavigate,
-  onStartGame,
+  onProceed,
 }) => {
   const coins = StorageService.loadCoins();
 
@@ -93,10 +93,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           variant="primary"
           fullWidth
           size="lg"
-          onClick={onStartGame}
-          icon={<Play className="w-7 h-7 fill-black" />}
+          onClick={onProceed}
+          icon={<ArrowRight className="w-6 h-6 text-black stroke-[3]" />}
         >
-          PLAY
+          PROCEED
         </Button>
 
         <Button

@@ -35,10 +35,10 @@ describe("DON'T TOUCH — Consistent Object Spacing & Balanced Layout Suite", ()
     }
   });
 
-  it('should enforce consistent, collision-free spacing across 500 challenges (Levels 1 to 20)', () => {
-    for (let round = 1; round <= 20; round++) {
+  it('should enforce consistent, collision-free spacing across 500 challenges (Beginner Levels 1 to 20)', () => {
+    for (let lvl = 1; lvl <= 20; lvl++) {
       for (let i = 0; i < 25; i++) {
-        const challenge = ChallengeGenerator.generate(round, `layout_test_${round}_${i}`);
+        const challenge = ChallengeGenerator.generateForCategory('beginner', lvl, 1, `layout_test_${lvl}_${i}`);
         expect(ChallengeValidator.validate(challenge)).toBe(true);
 
         const positions = challenge.objects.map((o) => o.position);
@@ -56,9 +56,9 @@ describe("DON'T TOUCH — Consistent Object Spacing & Balanced Layout Suite", ()
     }
   });
 
-  it('should ensure Leftmost and Rightmost targets in Levels 11+ have unambiguous, evenly-spaced coordinates', () => {
-    for (let round = 11; round <= 15; round++) {
-      const challenge = ChallengeGenerator.generate(round);
+  it('should ensure Leftmost and Rightmost targets in Beginner Levels 22 and 23 have unambiguous, evenly-spaced coordinates', () => {
+    for (const lvl of [22, 23]) {
+      const challenge = ChallengeGenerator.generateForCategory('beginner', lvl, 1);
       const objects = challenge.objects;
 
       // Objects sorted by X

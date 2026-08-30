@@ -11,14 +11,25 @@ export interface Position {
 
 export class LayoutEngine {
   /**
-   * Generates a perfectly balanced, evenly-spaced grid or row layout for N objects.
+   * Generates a perfectly balanced, evenly-spaced grid, row, or quadrant layout for N objects.
    *
-   * @param count Number of objects (2 to 8)
-   * @param mode 'grid' (default for Color & Odd-One) | 'row' (for Leftmost/Rightmost Position detection)
+   * @param count Number of objects (1 to 8)
+   * @param mode 'grid' | 'row' | 'quadrant' | 'single'
    * @returns Array of Position objects with guaranteed consistent spacing
    */
-  public static getBalancedPositions(count: number, mode: 'grid' | 'row' = 'grid'): Position[] {
-    const clampedCount = Math.max(2, Math.min(count, 8));
+  public static getBalancedPositions(
+    count: number,
+    mode: 'grid' | 'row' | 'quadrant' | 'single' = 'grid'
+  ): Position[] {
+    const clampedCount = Math.max(1, Math.min(count, 8));
+
+    if (clampedCount === 1 || mode === 'single') {
+      return [{ x: 50, y: 48 }];
+    }
+
+    if (mode === 'quadrant') {
+      return this.generateQuadrantPositions(clampedCount);
+    }
 
     if (mode === 'row' || clampedCount <= 3) {
       return this.generateSingleRowPositions(clampedCount);
@@ -32,6 +43,10 @@ export class LayoutEngine {
    */
   public static generateSingleRowPositions(count: number): Position[] {
     const yCenter = 50;
+
+    if (count === 1) {
+      return [{ x: 50, y: yCenter }];
+    }
 
     if (count === 2) {
       return [
@@ -92,6 +107,40 @@ export class LayoutEngine {
     }
 
     return positions;
+  }
+
+  /**
+   * Generates corner quadrant positions + center for positional challenges (Levels 22–28)
+   */
+  public static generateQuadrantPositions(count: number): Position[] {
+    if (count === 3) {
+      return [
+        { x: 24, y: 30 },
+        { x: 76, y: 30 },
+        { x: 50, y: 70 },
+      ];
+    }
+
+    if (count === 4) {
+      return [
+        { x: 22, y: 28 }, // Top-Left
+        { x: 78, y: 28 }, // Top-Right
+        { x: 22, y: 72 }, // Bottom-Left
+        { x: 78, y: 72 }, // Bottom-Right
+      ];
+    }
+
+    if (count === 5) {
+      return [
+        { x: 20, y: 26 }, // Top-Left
+        { x: 80, y: 26 }, // Top-Right
+        { x: 50, y: 50 }, // Center
+        { x: 20, y: 74 }, // Bottom-Left
+        { x: 80, y: 74 }, // Bottom-Right
+      ];
+    }
+
+    return this.generateBalancedGridPositions(count);
   }
 
   /**

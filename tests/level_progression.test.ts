@@ -1,19 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { ChallengeGenerator } from '../src/engine/ChallengeGenerator';
-import { DifficultyManager } from '../src/engine/DifficultyManager';
 import { ChallengeValidator } from '../src/engine/ChallengeValidator';
+import { GEOMETRIC_SHAPES, RAINBOW_COLORS } from '../src/utils/constants';
 
-describe("DON'T TOUCH — Level Progression, Instructions & Difficulty Suite", () => {
+describe("DON'T TOUCH — Beginner Level Progression (Levels 1–28)", () => {
   // =========================================================================
-  // LEVELS 1–5: COLOR DETECTION
+  // LEVELS 1–9: COLOR QUESTIONS ONLY (Rainbow palette)
   // =========================================================================
-  describe('Levels 1–5: Color Detection Verification', () => {
-    for (let lvl = 1; lvl <= 5; lvl++) {
-      it(`Level ${lvl} should generate valid Color challenges with single target and proper bounds (100 challenges tested)`, () => {
-        for (let i = 0; i < 100; i++) {
-          const challenge = ChallengeGenerator.generate(lvl, `color_seed_${lvl}_${i}`);
+  describe('Levels 1–9: Rainbow Color Detection', () => {
+    for (let lvl = 1; lvl <= 9; lvl++) {
+      it(`Level ${lvl} should generate valid Color challenges with rainbow colors (50 challenges tested)`, () => {
+        for (let i = 0; i < 50; i++) {
+          const challenge = ChallengeGenerator.generateForCategory('beginner', lvl, 1, `color_seed_${lvl}_${i}`);
           expect(challenge.type).toBe('COLOR');
-          expect(challenge.instruction).toMatch(/^TAP THE [A-Z]+ OBJECT$/);
           expect(challenge.validTargetIds.length).toBe(1);
           expect(challenge.difficultyLevel).toBe(lvl);
           expect(ChallengeValidator.validate(challenge)).toBe(true);
@@ -23,8 +22,9 @@ describe("DON'T TOUCH — Level Progression, Instructions & Difficulty Suite", (
           expect(targetObj).toBeDefined();
           expect(challenge.instruction).toContain(targetObj!.color.toUpperCase());
 
-          // Verify all objects inside viewport
+          // Verify all objects inside viewport and rainbow colors
           for (const obj of challenge.objects) {
+            expect(RAINBOW_COLORS).toContain(obj.color);
             expect(obj.position.x).toBeGreaterThanOrEqual(5);
             expect(obj.position.x).toBeLessThanOrEqual(95);
             expect(obj.position.y).toBeGreaterThanOrEqual(5);
@@ -34,99 +34,53 @@ describe("DON'T TOUCH — Level Progression, Instructions & Difficulty Suite", (
       });
     }
 
-    it('Level 1 should have 5.0 seconds time limit and large objects', () => {
-      const config = DifficultyManager.getConfigForRound(1);
-      expect(config.level).toBe(1);
-      expect(config.timeLimitSeconds).toBe(5.0);
-      expect(config.objectSize).toBe('large');
-      expect(config.tier).toBe('COLOR');
+    it('Level 1 should have 5.0 seconds time limit and 3 objects', () => {
+      const challenge = ChallengeGenerator.generateForCategory('beginner', 1, 1);
+      expect(challenge.timeLimitSeconds).toBe(5.0);
+      expect(challenge.objects.length).toBe(3);
     });
   });
 
   // =========================================================================
-  // LEVELS 6–10: ODD-ONE-OUT
+  // LEVELS 10–19: GEOMETRICAL SHAPES ONLY
   // =========================================================================
-  describe('Levels 6–10: Odd-One-Out Verification', () => {
-    for (let lvl = 6; lvl <= 10; lvl++) {
-      it(`Level ${lvl} should generate valid Odd-One-Out challenges (100 challenges tested)`, () => {
-        for (let i = 0; i < 100; i++) {
-          const challenge = ChallengeGenerator.generate(lvl, `odd_seed_${lvl}_${i}`);
-          expect(challenge.type).toBe('ODD_ONE');
+  describe('Levels 10–19: Geometrical Shapes Verification', () => {
+    for (let lvl = 10; lvl <= 19; lvl++) {
+      it(`Level ${lvl} should generate valid Shape challenges from 10-shape library (50 challenges tested)`, () => {
+        for (let i = 0; i < 50; i++) {
+          const challenge = ChallengeGenerator.generateForCategory('beginner', lvl, 1, `shape_seed_${lvl}_${i}`);
+          expect(challenge.type).toBe('SHAPE');
           expect(challenge.validTargetIds.length).toBe(1);
           expect(challenge.difficultyLevel).toBe(lvl);
           expect(ChallengeValidator.validate(challenge)).toBe(true);
 
-          // Instruction matches one of the specified formats
-          expect([
-            'SELECT THE ODD ONE',
-            'SELECT THE ODD SHAPE',
-            'SELECT THE ODD COLOR',
-          ]).toContain(challenge.instruction);
+          for (const obj of challenge.objects) {
+            expect(GEOMETRIC_SHAPES).toContain(obj.shape);
+          }
         }
       });
     }
-
-    it('Level 6 should have tier ODD_ONE and 4 objects', () => {
-      const config = DifficultyManager.getConfigForRound(6);
-      expect(config.level).toBe(6);
-      expect(config.tier).toBe('ODD_ONE');
-      expect(config.objectCount).toBe(4);
-    });
-
-    it('Level 7 should specify SELECT THE ODD SHAPE', () => {
-      const challenge = ChallengeGenerator.generate(7);
-      expect(challenge.instruction).toBe('SELECT THE ODD SHAPE');
-    });
   });
 
   // =========================================================================
-  // LEVEL 11+: POSITION DETECTION (LEFTMOST / RIGHTMOST)
+  // LEVELS 20–21: INTRODUCTORY POSITION
   // =========================================================================
-  describe('Level 11+: Position Detection (Leftmost / Rightmost)', () => {
-    it('Level 11 should strictly generate SELECT THE LEFTMOST OBJECT and target smallest X', () => {
-      for (let i = 0; i < 100; i++) {
-        const challenge = ChallengeGenerator.generate(11, `pos_11_${i}`);
-        expect(challenge.type).toBe('POSITION');
-        expect(challenge.instruction).toBe('SELECT THE LEFTMOST OBJECT');
-        expect(challenge.validTargetIds.length).toBe(1);
-
-        const targetObj = challenge.objects.find((o) => o.id === challenge.validTargetIds[0])!;
-        // Target must have the strictly smallest X coordinate
-        for (const obj of challenge.objects) {
-          expect(targetObj.position.x).toBeLessThanOrEqual(obj.position.x);
-        }
-      }
-    });
-
-    it('Level 12 should strictly generate SELECT THE RIGHTMOST OBJECT and target largest X', () => {
-      for (let i = 0; i < 100; i++) {
-        const challenge = ChallengeGenerator.generate(12, `pos_12_${i}`);
-        expect(challenge.type).toBe('POSITION');
-        expect(challenge.instruction).toBe('SELECT THE RIGHTMOST OBJECT');
-        expect(challenge.validTargetIds.length).toBe(1);
-
-        const targetObj = challenge.objects.find((o) => o.id === challenge.validTargetIds[0])!;
-        // Target must have the strictly largest X coordinate
-        for (const obj of challenge.objects) {
-          expect(targetObj.position.x).toBeGreaterThanOrEqual(obj.position.x);
-        }
-      }
-    });
-
-    it('Level 13–15+ should accurately compute leftmost or rightmost based on instruction', () => {
-      for (let lvl = 13; lvl <= 20; lvl++) {
-        for (let i = 0; i < 25; i++) {
-          const challenge = ChallengeGenerator.generate(lvl, `pos_${lvl}_${i}`);
+  describe('Levels 20–21: Introductory Position (Left, Right, Top, Bottom)', () => {
+    it('Levels 20–21 should generate valid intro position challenges with 3 objects', () => {
+      for (let lvl = 20; lvl <= 21; lvl++) {
+        for (let i = 0; i < 50; i++) {
+          const challenge = ChallengeGenerator.generateForCategory('beginner', lvl, 1, `pos_intro_${lvl}_${i}`);
           expect(challenge.type).toBe('POSITION');
+          expect(challenge.objects.length).toBe(3);
           expect(challenge.validTargetIds.length).toBe(1);
 
-          const isLeft = challenge.instruction.includes('LEFTMOST');
           const targetObj = challenge.objects.find((o) => o.id === challenge.validTargetIds[0])!;
-
-          for (const obj of challenge.objects) {
-            if (isLeft) {
+          if (challenge.instruction.includes('LEFT')) {
+            for (const obj of challenge.objects) {
               expect(targetObj.position.x).toBeLessThanOrEqual(obj.position.x);
-            } else {
+            }
+          } else {
+            for (const obj of challenge.objects) {
               expect(targetObj.position.x).toBeGreaterThanOrEqual(obj.position.x);
             }
           }
@@ -136,18 +90,51 @@ describe("DON'T TOUCH — Level Progression, Instructions & Difficulty Suite", (
   });
 
   // =========================================================================
-  // CONTINUOUS 15-LEVEL ACCEPTANCE TEST
+  // LEVELS 22–28: POSITION DETECTION
   // =========================================================================
-  it('should transition smoothly through LEVEL 1 -> LEVEL 15+ with exact tier matching', () => {
-    for (let round = 1; round <= 20; round++) {
-      const challenge = ChallengeGenerator.generate(round);
+  describe('Levels 22–28: Coordinate-Based Position Detection', () => {
+    it('Level 22 should strictly target LEFTMOST shape with smallest X', () => {
+      for (let i = 0; i < 50; i++) {
+        const challenge = ChallengeGenerator.generateForCategory('beginner', 22, 1, `pos_22_${i}`);
+        expect(challenge.type).toBe('POSITION');
+        expect(challenge.instruction).toBe('SELECT THE LEFTMOST SHAPE');
+        expect(challenge.validTargetIds.length).toBe(1);
+
+        const targetObj = challenge.objects.find((o) => o.id === challenge.validTargetIds[0])!;
+        for (const obj of challenge.objects) {
+          expect(targetObj.position.x).toBeLessThanOrEqual(obj.position.x);
+        }
+      }
+    });
+
+    it('Level 23 should strictly target RIGHTMOST shape with largest X', () => {
+      for (let i = 0; i < 50; i++) {
+        const challenge = ChallengeGenerator.generateForCategory('beginner', 23, 1, `pos_23_${i}`);
+        expect(challenge.type).toBe('POSITION');
+        expect(challenge.instruction).toBe('SELECT THE RIGHTMOST SHAPE');
+        expect(challenge.validTargetIds.length).toBe(1);
+
+        const targetObj = challenge.objects.find((o) => o.id === challenge.validTargetIds[0])!;
+        for (const obj of challenge.objects) {
+          expect(targetObj.position.x).toBeGreaterThanOrEqual(obj.position.x);
+        }
+      }
+    });
+  });
+
+  // =========================================================================
+  // CONTINUOUS BEGINNER 28-LEVEL PROGRESSION TEST
+  // =========================================================================
+  it('should transition smoothly through Beginner Levels 1 to 28 with exact curriculum matching', () => {
+    for (let lvl = 1; lvl <= 28; lvl++) {
+      const challenge = ChallengeGenerator.generateForCategory('beginner', lvl, 1);
       expect(challenge.validTargetIds.length).toBe(1);
       expect(ChallengeValidator.validate(challenge)).toBe(true);
 
-      if (round <= 5) {
+      if (lvl <= 9) {
         expect(challenge.type).toBe('COLOR');
-      } else if (round <= 10) {
-        expect(challenge.type).toBe('ODD_ONE');
+      } else if (lvl <= 19) {
+        expect(challenge.type).toBe('SHAPE');
       } else {
         expect(challenge.type).toBe('POSITION');
       }

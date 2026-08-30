@@ -12,7 +12,7 @@ describe("DON'T TAP IT! — End-to-End User Journey & Flow Tests", () => {
     const manager = new GameManager();
 
     for (let cycle = 1; cycle <= 25; cycle++) {
-      manager.start();
+      manager.start('genius', 1, 1);
       const state = (manager as unknown as { state: { score: number; round: number; combo: number; isGameOver: boolean } }).state;
 
       expect(state.score).toBe(0);

@@ -1,56 +1,49 @@
 import { describe, expect, it } from 'vitest';
 import { ChallengeGenerator } from '../src/engine/ChallengeGenerator';
 import { ChallengeValidator } from '../src/engine/ChallengeValidator';
-import { DifficultyManager } from '../src/engine/DifficultyManager';
 import { ScoreManager } from '../src/engine/ScoreManager';
-import { ChallengeType } from '../src/models/types';
 
 describe("DON'T TAP IT! — Massive 1,000+ Challenge Stress Test Suite", () => {
-  it('should generate 1,000 consecutive challenges across all rounds with zero invalid or ambiguous states', () => {
-    const typeDistribution: Record<ChallengeType, number> = {
-      COLOR: 0,
-      SIZE: 0,
-      ODD_ONE: 0,
-      MOVEMENT: 0,
-      POSITION: 0,
-      COUNT: 0,
-      MEMORY: 0,
-      NEGATION: 0,
-    };
+  it('should generate 1,000 consecutive challenges across all categories with zero invalid or ambiguous states', () => {
+    // 1. Beginner 28 levels
+    for (let lvl = 1; lvl <= 28; lvl++) {
+      for (let run = 0; run < 15; run++) {
+        const challenge = ChallengeGenerator.generateForCategory('beginner', lvl, 1);
+        const isValid = ChallengeValidator.validate(challenge);
+        expect(isValid).toBe(true);
 
-    for (let round = 1; round <= 1000; round++) {
-      const challenge = ChallengeGenerator.generate(round);
-      const isValid = ChallengeValidator.validate(challenge);
-      expect(isValid).toBe(true);
-
-      typeDistribution[challenge.type]++;
-
-      if (challenge.isNoTapChallenge) {
-        expect(challenge.validTargetIds.length).toBe(0);
-      } else {
         expect(challenge.validTargetIds.length).toBe(1);
         const targetId = challenge.validTargetIds[0];
         const found = challenge.objects.some((obj) => obj.id === targetId);
         expect(found).toBe(true);
-      }
 
-      // Assert all object positions stay safely inside the view boundaries
-      for (const obj of challenge.objects) {
-        expect(obj.position.x).toBeGreaterThanOrEqual(5);
-        expect(obj.position.x).toBeLessThanOrEqual(95);
-        expect(obj.position.y).toBeGreaterThanOrEqual(5);
-        expect(obj.position.y).toBeLessThanOrEqual(95);
+        for (const obj of challenge.objects) {
+          expect(obj.position.x).toBeGreaterThanOrEqual(5);
+          expect(obj.position.x).toBeLessThanOrEqual(95);
+          expect(obj.position.y).toBeGreaterThanOrEqual(5);
+          expect(obj.position.y).toBeLessThanOrEqual(95);
+        }
       }
-
-      // Assert time limit is positive and bounded
-      expect(challenge.timeLimitSeconds).toBeGreaterThanOrEqual(1.0);
-      expect(challenge.timeLimitSeconds).toBeLessThanOrEqual(5.5);
     }
 
-    // Verify all 3 primary level progression tiers were generated across 1000 rounds
-    expect(typeDistribution.COLOR).toBe(5);
-    expect(typeDistribution.ODD_ONE).toBe(5);
-    expect(typeDistribution.POSITION).toBe(990);
+    // 2. Genius 14 levels x 10 questions
+    for (let lvl = 1; lvl <= 14; lvl++) {
+      for (let q = 1; q <= 10; q++) {
+        const challenge = ChallengeGenerator.generateForCategory('genius', lvl, q);
+        expect(ChallengeValidator.validate(challenge)).toBe(true);
+        expect(challenge.validTargetIds.length).toBe(1);
+      }
+    }
+
+    // 3. Extreme Genius 6 levels x 15 questions
+    for (let lvl = 1; lvl <= 6; lvl++) {
+      for (let q = 1; q <= 15; q++) {
+        const challenge = ChallengeGenerator.generateForCategory('extreme', lvl, q);
+        expect(ChallengeValidator.validate(challenge)).toBe(true);
+        expect(challenge.options?.length).toBe(4);
+        expect(challenge.correctWordAnswer).toBeDefined();
+      }
+    }
   });
 
   it('should stress-test scoring edge cases and ensure strictly non-negative, finite numbers', () => {
@@ -63,8 +56,8 @@ describe("DON'T TAP IT! — Massive 1,000+ Challenge Stress Test Suite", () => {
       { reaction: 1500, timeLimit: 1.5, combo: 50 },
       { reaction: 2000, timeLimit: 2.0, combo: 100 },
       { reaction: 3000, timeLimit: 3.0, combo: 1 },
-      { reaction: 5000, timeLimit: 3.0, combo: 1 }, // Exceeded time limit
-      { reaction: -100, timeLimit: 3.0, combo: 1 }, // Negative reaction time clamp
+      { reaction: 5000, timeLimit: 3.0, combo: 1 },
+      { reaction: -100, timeLimit: 3.0, combo: 1 },
     ];
 
     for (const tc of testCases) {

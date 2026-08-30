@@ -1,25 +1,53 @@
-import { Challenge, GameColorName, GameObject, ShapeType } from '../models/types';
-import { COLOR_KEYS, GAME_COLORS, SHAPE_KEYS } from '../utils/constants';
+import {
+  CategoryId,
+  Challenge,
+  GameColorName,
+  GameObject,
+} from '../models/types';
+import {
+  CATEGORIES_CONFIG,
+  COLOR_KEYS,
+  GAME_COLORS,
+  GEOMETRIC_SHAPES,
+  RAINBOW_COLORS,
+  SHAPE_DISPLAY_NAMES,
+} from '../utils/constants';
 import { RandomUtil, SeededRandom } from '../utils/random';
 import { ChallengeValidator } from './ChallengeValidator';
-import { DifficultyConfig, DifficultyManager } from './DifficultyManager';
 import { LayoutEngine } from './LayoutEngine';
 
 export class ChallengeGenerator {
   /**
-   * Generates a procedurally verified challenge following the exact level progression:
-   * - Levels 1–5:  COLOR DETECTION
-   * - Levels 6–10: ODD-ONE-OUT / ODD SHAPE
-   * - Levels 11+:  POSITION DETECTION (Leftmost / Rightmost)
+   * Generates a procedurally verified challenge for any Category and Level.
    *
-   * All objects are placed using LayoutEngine for balanced, consistent, and touch-safe spacing.
+   * @param category 'beginner' | 'genius' | 'extreme'
+   * @param level Level number within category (1-indexed)
+   * @param questionIndex Question number within the level (1-indexed, e.g. 1 to 10 for Genius, 1 to 15 for Extreme)
+   * @param seed Optional seed for deterministic reproducibility
    */
-  public static generate(round: number, seed?: string | number): Challenge {
-    const rng = seed !== undefined ? new SeededRandom(seed) : null;
-    const diff = DifficultyManager.getConfigForRound(round);
+  public static generateForCategory(
+    category: CategoryId,
+    level: number,
+    questionIndex = 1,
+    seed?: string | number
+  ): Challenge {
+    const rng = seed !== undefined ? new SeededRandom(`${seed}_${category}_${level}_${questionIndex}`) : null;
 
     for (let attempt = 0; attempt < 30; attempt++) {
-      const challenge = this.buildChallengeForLevel(diff, rng);
+      let challenge: Challenge;
+
+      if (category === 'beginner') {
+        challenge = this.buildBeginnerChallenge(level, rng);
+      } else if (category === 'genius') {
+        challenge = this.buildGeniusChallenge(level, questionIndex, rng);
+      } else {
+        challenge = this.buildExtremeChallenge(level, questionIndex, rng);
+      }
+
+      challenge.category = category;
+      challenge.level = level;
+      challenge.questionIndex = questionIndex;
+      challenge.totalQuestions = CATEGORIES_CONFIG[category]?.questionsPerLevel || 1;
 
       if (ChallengeValidator.validate(challenge)) {
         return challenge;
@@ -27,465 +55,615 @@ export class ChallengeGenerator {
     }
 
     // Ultra-reliable fallback
-    return this.buildFallbackChallenge(diff);
+    return this.buildFallbackChallenge(category, level, questionIndex);
   }
 
-  private static buildChallengeForLevel(
-    diff: DifficultyConfig,
-    rng: SeededRandom | null
-  ): Challenge {
-    const id = `ch_lvl${diff.level}_${Math.random().toString(36).substring(2, 7)}`;
+  /**
+   * Compatibility wrapper for classic/daily mode
+   */
+  public static generate(round: number, seed?: string | number): Challenge {
+    if (round <= 28) {
+      return this.generateForCategory('beginner', round, 1, seed);
+    }
+    const geniusLevel = Math.min(14, Math.floor((round - 28) / 10) + 1);
+    const qIndex = ((round - 29) % 10) + 1;
+    return this.generateForCategory('genius', geniusLevel, qIndex, seed);
+  }
 
-    switch (diff.tier) {
-      case 'COLOR':
-        return this.generateColorDetection(diff.level, id, diff, rng);
-      case 'ODD_ONE':
-        return this.generateOddOneOut(diff.level, id, diff, rng);
-      case 'POSITION':
-        return this.generatePositionDetection(diff.level, id, diff, rng);
-      default:
-        return this.generateColorDetection(diff.level, id, diff, rng);
+  // =========================================================================
+  // 1. BEGINNER CATEGORY GENERATOR (LEVELS 1–28)
+  // =========================================================================
+  private static buildBeginnerChallenge(level: number, rng: SeededRandom | null): Challenge {
+    const id = `ch_beg_lvl${level}_${Math.random().toString(36).substring(2, 7)}`;
+
+    if (level <= 9) {
+      // -----------------------------------------------------------------------
+      // LEVELS 1–9: COLOR QUESTIONS ONLY (Rainbow Colors Only)
+      // -----------------------------------------------------------------------
+      return this.generateBeginnerColorChallenge(level, id, rng);
+    } else if (level <= 19) {
+      // -----------------------------------------------------------------------
+      // LEVELS 10–19: GEOMETRICAL SHAPES ONLY (10 Shape Library)
+      // -----------------------------------------------------------------------
+      return this.generateBeginnerShapeChallenge(level, id, rng);
+    } else if (level <= 21) {
+      // -----------------------------------------------------------------------
+      // LEVELS 20–21: INTRODUCTION TO POSITION (Left, Right, Top, Bottom)
+      // -----------------------------------------------------------------------
+      return this.generateBeginnerIntroPositionChallenge(level, id, rng);
+    } else {
+      // -----------------------------------------------------------------------
+      // LEVELS 22–28: POSITION QUESTIONS ONLY (Leftmost, Rightmost, Quadrants)
+      // -----------------------------------------------------------------------
+      return this.generateBeginnerAdvancedPositionChallenge(level, id, rng);
     }
   }
 
-  // =========================================================================
-  // LEVELS 1–5: COLOR DETECTION
-  // =========================================================================
-  private static generateColorDetection(
+  /**
+   * Beginner Levels 1–9: ONLY Rainbow colors (red, orange, yellow, green, blue, indigo, violet)
+   */
+  private static generateBeginnerColorChallenge(
     level: number,
     id: string,
-    diff: DifficultyConfig,
     rng: SeededRandom | null
   ): Challenge {
-    const count = diff.objectCount;
-    const positions = LayoutEngine.getBalancedPositions(count, 'grid');
-
-    const primaryColors: GameColorName[] = ['red', 'blue', 'green', 'yellow'];
-    const allColors: GameColorName[] = COLOR_KEYS;
-
-    let targetColor: GameColorName;
-    let distractorColors: GameColorName[];
-    const objects: GameObject[] = [];
-    const targetIndex = rng ? rng.range(0, count - 1) : RandomUtil.int(0, count - 1);
+    // Determine object count & timer by level
+    let count: number;
+    let timeLimit: number;
 
     if (level === 1) {
-      // Level 1: Basic Color (2-3 objects, 2 simple colors, large size)
-      const shuffled = rng ? rng.shuffle(primaryColors) : RandomUtil.shuffle(primaryColors);
-      targetColor = shuffled[0];
-      const otherColor = shuffled[1];
-      const baseShape = rng ? rng.choice(SHAPE_KEYS) : RandomUtil.choice(SHAPE_KEYS);
+      count = 3;
+      timeLimit = 5.0;
+    } else if (level <= 3) {
+      count = 4;
+      timeLimit = level === 2 ? 4.2 : 3.6;
+    } else if (level <= 5) {
+      count = 5;
+      timeLimit = level === 4 ? 3.2 : 2.8;
+    } else if (level <= 7) {
+      count = 6;
+      timeLimit = level === 6 ? 2.5 : 2.2;
+    } else {
+      count = 7;
+      timeLimit = level === 8 ? 2.0 : 1.8;
+    }
+
+    const positions = LayoutEngine.getBalancedPositions(count, count <= 4 ? 'grid' : 'grid');
+    const shuffledRainbow = rng ? rng.shuffle([...RAINBOW_COLORS]) : RandomUtil.shuffle([...RAINBOW_COLORS]);
+    const targetColor = shuffledRainbow[0];
+    const otherColors = shuffledRainbow.slice(1);
+    const targetIndex = rng ? rng.range(0, count - 1) : RandomUtil.int(0, count - 1);
+
+    // Keep shapes identical (circle) so NO shape logic is introduced
+    const objects: GameObject[] = [];
+    for (let i = 0; i < count; i++) {
+      const color = i === targetIndex ? targetColor : otherColors[(i - 1 + otherColors.length) % otherColors.length];
+      objects.push({
+        id: `obj_${i}`,
+        shape: 'circle',
+        color,
+        size: level <= 2 ? 'large' : 'medium',
+        position: positions[i],
+        movement: 'none',
+        spawnDelayMs: 0,
+        spawnOrder: i,
+      });
+    }
+
+    const phrasingType = rng ? rng.range(0, 1) : RandomUtil.int(0, 1);
+    const instruction = phrasingType === 0
+      ? `TAP THE ${targetColor.toUpperCase()} OBJECT`
+      : `FIND THE ${targetColor.toUpperCase()} COLOR`;
+
+    return {
+      id,
+      type: 'COLOR',
+      instruction,
+      subInstruction: `Tap the ${targetColor} circle`,
+      highlightColor: GAME_COLORS[targetColor]?.hex || '#FFFFFF',
+      objects,
+      validTargetIds: [objects[targetIndex].id],
+      isNoTapChallenge: false,
+      timeLimitSeconds: timeLimit,
+      difficultyLevel: level,
+      createdAt: Date.now(),
+    };
+  }
+
+  /**
+   * Beginner Levels 10–19: ONLY Geometrical Shapes (10-shape library)
+   */
+  private static generateBeginnerShapeChallenge(
+    level: number,
+    id: string,
+    rng: SeededRandom | null
+  ): Challenge {
+    let count: number;
+    let timeLimit: number;
+
+    if (level === 10) {
+      count = 3;
+      timeLimit = 4.5;
+    } else if (level <= 13) {
+      count = 4;
+      timeLimit = 4.0 - (level - 10) * 0.3;
+    } else if (level <= 16) {
+      count = 5;
+      timeLimit = 3.0 - (level - 14) * 0.25;
+    } else if (level <= 18) {
+      count = 6;
+      timeLimit = 2.2 - (level - 17) * 0.2;
+    } else {
+      count = 7;
+      timeLimit = 1.8;
+    }
+
+    const positions = LayoutEngine.getBalancedPositions(count, 'grid');
+    const shuffledShapes = rng ? rng.shuffle([...GEOMETRIC_SHAPES]) : RandomUtil.shuffle([...GEOMETRIC_SHAPES]);
+    const targetShape = shuffledShapes[0];
+    const otherShapes = shuffledShapes.slice(1);
+    const targetIndex = rng ? rng.range(0, count - 1) : RandomUtil.int(0, count - 1);
+
+    // Uniform color for all objects so NO color logic is introduced
+    const baseColor: GameColorName = level % 2 === 0 ? 'cyan' : 'blue';
+
+    const objects: GameObject[] = [];
+    for (let i = 0; i < count; i++) {
+      const shape = i === targetIndex ? targetShape : otherShapes[(i - 1 + otherShapes.length) % otherShapes.length];
+      objects.push({
+        id: `obj_${i}`,
+        shape,
+        color: baseColor,
+        size: level <= 12 ? 'large' : 'medium',
+        position: positions[i],
+        movement: 'none',
+        spawnDelayMs: 0,
+        spawnOrder: i,
+      });
+    }
+
+    const shapeName = SHAPE_DISPLAY_NAMES[targetShape] || targetShape.toUpperCase();
+    const phrasingType = rng ? rng.range(0, 1) : RandomUtil.int(0, 1);
+    const instruction = phrasingType === 0
+      ? `FIND THE ${shapeName}`
+      : `TAP THE ${shapeName}`;
+
+    return {
+      id,
+      type: 'SHAPE',
+      instruction,
+      subInstruction: `Tap the ${shapeName.toLowerCase()}`,
+      highlightColor: '#00F0FF',
+      objects,
+      validTargetIds: [objects[targetIndex].id],
+      isNoTapChallenge: false,
+      timeLimitSeconds: timeLimit,
+      difficultyLevel: level,
+      createdAt: Date.now(),
+    };
+  }
+
+  /**
+   * Beginner Levels 20–21: Introductory Position (Left, Right, Top, Bottom)
+   */
+  private static generateBeginnerIntroPositionChallenge(
+    level: number,
+    id: string,
+    rng: SeededRandom | null
+  ): Challenge {
+    const count = 3;
+    const timeLimit = level === 20 ? 4.0 : 3.5;
+    const positions = LayoutEngine.getBalancedPositions(count, 'row');
+
+    const objects: GameObject[] = [];
+    for (let i = 0; i < count; i++) {
+      objects.push({
+        id: `obj_${i}`,
+        shape: 'circle',
+        color: 'cyan',
+        size: 'large',
+        position: positions[i],
+        movement: 'none',
+        spawnDelayMs: 0,
+        spawnOrder: i,
+      });
+    }
+
+    // Determine target by actual rendered screen coordinates
+    const targetDirection = (rng ? rng.range(0, 1) : RandomUtil.int(0, 1)) === 0 ? 'LEFT' : 'RIGHT';
+    let targetObj = objects[0];
+
+    if (targetDirection === 'LEFT') {
+      for (const obj of objects) {
+        if (obj.position.x < targetObj.position.x) {
+          targetObj = obj;
+        }
+      }
+    } else {
+      for (const obj of objects) {
+        if (obj.position.x > targetObj.position.x) {
+          targetObj = obj;
+        }
+      }
+    }
+
+    const instruction = `TAP THE ${targetDirection} OBJECT`;
+
+    return {
+      id,
+      type: 'POSITION',
+      instruction,
+      subInstruction: targetDirection === 'LEFT' ? 'Tap the object on the left' : 'Tap the object on the right',
+      highlightColor: '#FFDE59',
+      objects,
+      validTargetIds: [targetObj.id],
+      isNoTapChallenge: false,
+      timeLimitSeconds: timeLimit,
+      difficultyLevel: level,
+      createdAt: Date.now(),
+    };
+  }
+
+  /**
+   * Beginner Levels 22–28: Positional Questions based on actual screen coordinates
+   * (Leftmost, Rightmost, Top-Left, Top-Right, Bottom-Left, Bottom-Right)
+   */
+  private static generateBeginnerAdvancedPositionChallenge(
+    level: number,
+    id: string,
+    rng: SeededRandom | null
+  ): Challenge {
+    const timeLimit = Math.max(1.8, 3.2 - (level - 22) * 0.22);
+    let count: number;
+    let posType: 'LEFTMOST' | 'RIGHTMOST' | 'TOP_LEFT' | 'TOP_RIGHT' | 'BOTTOM_LEFT' | 'BOTTOM_RIGHT';
+
+    if (level === 22) {
+      count = 4;
+      posType = 'LEFTMOST';
+    } else if (level === 23) {
+      count = 4;
+      posType = 'RIGHTMOST';
+    } else if (level === 24) {
+      count = 4;
+      posType = 'TOP_LEFT';
+    } else if (level === 25) {
+      count = 4;
+      posType = 'TOP_RIGHT';
+    } else if (level === 26) {
+      count = 4;
+      posType = 'BOTTOM_LEFT';
+    } else if (level === 27) {
+      count = 4;
+      posType = 'BOTTOM_RIGHT';
+    } else {
+      // Level 28: Mixed 5-object challenge
+      count = 5;
+      const allPos: Array<'LEFTMOST' | 'RIGHTMOST' | 'TOP_LEFT' | 'TOP_RIGHT' | 'BOTTOM_LEFT' | 'BOTTOM_RIGHT'> = [
+        'LEFTMOST',
+        'RIGHTMOST',
+        'TOP_LEFT',
+        'TOP_RIGHT',
+        'BOTTOM_LEFT',
+        'BOTTOM_RIGHT',
+      ];
+      posType = rng ? rng.choice(allPos) : RandomUtil.choice(allPos);
+    }
+
+    const isLinear = posType === 'LEFTMOST' || posType === 'RIGHTMOST';
+    const positions = LayoutEngine.getBalancedPositions(count, isLinear ? 'row' : 'quadrant');
+
+    const objects: GameObject[] = [];
+    const shapes = rng ? rng.shuffle([...GEOMETRIC_SHAPES]) : RandomUtil.shuffle([...GEOMETRIC_SHAPES]);
+    const colors = rng ? rng.shuffle([...COLOR_KEYS]) : RandomUtil.shuffle([...COLOR_KEYS]);
+
+    for (let i = 0; i < count; i++) {
+      objects.push({
+        id: `obj_${i}`,
+        shape: shapes[i % shapes.length],
+        color: colors[i % colors.length],
+        size: 'medium',
+        position: positions[i],
+        movement: 'none',
+        spawnDelayMs: 0,
+        spawnOrder: i,
+      });
+    }
+
+    // Determine target strictly from actual rendered screen coordinates
+    let targetObj = objects[0];
+
+    if (posType === 'LEFTMOST') {
+      for (const obj of objects) {
+        if (obj.position.x < targetObj.position.x) {
+          targetObj = obj;
+        }
+      }
+    } else if (posType === 'RIGHTMOST') {
+      for (const obj of objects) {
+        if (obj.position.x > targetObj.position.x) {
+          targetObj = obj;
+        }
+      }
+    } else if (posType === 'TOP_LEFT') {
+      let minScore = Infinity;
+      for (const obj of objects) {
+        const score = obj.position.x + obj.position.y;
+        if (score < minScore) {
+          minScore = score;
+          targetObj = obj;
+        }
+      }
+    } else if (posType === 'TOP_RIGHT') {
+      let maxScore = -Infinity;
+      for (const obj of objects) {
+        const score = obj.position.x - obj.position.y;
+        if (score > maxScore) {
+          maxScore = score;
+          targetObj = obj;
+        }
+      }
+    } else if (posType === 'BOTTOM_LEFT') {
+      let minScore = Infinity;
+      for (const obj of objects) {
+        const score = obj.position.x - obj.position.y;
+        if (score < minScore) {
+          minScore = score;
+          targetObj = obj;
+        }
+      }
+    } else if (posType === 'BOTTOM_RIGHT') {
+      let maxScore = -Infinity;
+      for (const obj of objects) {
+        const score = obj.position.x + obj.position.y;
+        if (score > maxScore) {
+          maxScore = score;
+          targetObj = obj;
+        }
+      }
+    }
+
+    const instructionMap = {
+      LEFTMOST: 'SELECT THE LEFTMOST SHAPE',
+      RIGHTMOST: 'SELECT THE RIGHTMOST SHAPE',
+      TOP_LEFT: 'SELECT THE TOP-LEFT SHAPE',
+      TOP_RIGHT: 'SELECT THE TOP-RIGHT SHAPE',
+      BOTTOM_LEFT: 'SELECT THE BOTTOM-LEFT SHAPE',
+      BOTTOM_RIGHT: 'SELECT THE BOTTOM-RIGHT SHAPE',
+    };
+
+    return {
+      id,
+      type: 'POSITION',
+      instruction: instructionMap[posType],
+      subInstruction: `Tap the ${posType.toLowerCase().replace('_', '-')} object`,
+      highlightColor: '#08D9D6',
+      objects,
+      validTargetIds: [targetObj.id],
+      isNoTapChallenge: false,
+      timeLimitSeconds: timeLimit,
+      difficultyLevel: level,
+      createdAt: Date.now(),
+    };
+  }
+
+  // =========================================================================
+  // 2. GENIUS CATEGORY GENERATOR (LEVELS 1–14 • 10 RAPID-FIRE QUESTIONS)
+  // =========================================================================
+  private static buildGeniusChallenge(
+    level: number,
+    questionIndex: number,
+    rng: SeededRandom | null
+  ): Challenge {
+    const id = `ch_gen_lvl${level}_q${questionIndex}_${Math.random().toString(36).substring(2, 7)}`;
+    const timeLimit = Math.max(1.3, 2.8 - (level - 1) * 0.1 - (questionIndex - 1) * 0.04);
+
+    // Rapidly switch between Color, Shape, and Position questions across the 10 questions
+    const questionTypeIndex = (questionIndex - 1) % 3;
+
+    if (questionTypeIndex === 0) {
+      // Color challenge
+      const count = Math.min(6, 4 + Math.floor((level - 1) / 4));
+      const positions = LayoutEngine.getBalancedPositions(count, 'grid');
+      const shuffledColors = rng ? rng.shuffle([...COLOR_KEYS]) : RandomUtil.shuffle([...COLOR_KEYS]);
+      const targetColor = shuffledColors[0];
+      const targetIndex = rng ? rng.range(0, count - 1) : RandomUtil.int(0, count - 1);
+      const objects: GameObject[] = [];
 
       for (let i = 0; i < count; i++) {
+        const color = i === targetIndex ? targetColor : shuffledColors[(i + 1) % shuffledColors.length];
+        const shape = rng ? rng.choice(GEOMETRIC_SHAPES) : RandomUtil.choice(GEOMETRIC_SHAPES);
         objects.push({
           id: `obj_${i}`,
-          shape: baseShape,
-          color: i === targetIndex ? targetColor : otherColor,
-          size: 'large',
+          shape,
+          color,
+          size: 'medium',
+          position: positions[i],
+          movement: level >= 8 && i % 2 === 1 ? 'pulse' : 'none',
+          spawnDelayMs: 0,
+          spawnOrder: i,
+        });
+      }
+
+      return {
+        id,
+        type: 'COLOR',
+        instruction: `TAP THE ${targetColor.toUpperCase()} OBJECT`,
+        subInstruction: `Question ${questionIndex}/10`,
+        highlightColor: GAME_COLORS[targetColor]?.hex || '#FFFFFF',
+        objects,
+        validTargetIds: [objects[targetIndex].id],
+        isNoTapChallenge: false,
+        timeLimitSeconds: timeLimit,
+        difficultyLevel: level,
+        createdAt: Date.now(),
+      };
+    } else if (questionTypeIndex === 1) {
+      // Shape challenge
+      const count = Math.min(6, 4 + Math.floor((level - 1) / 4));
+      const positions = LayoutEngine.getBalancedPositions(count, 'grid');
+      const shuffledShapes = rng ? rng.shuffle([...GEOMETRIC_SHAPES]) : RandomUtil.shuffle([...GEOMETRIC_SHAPES]);
+      const targetShape = shuffledShapes[0];
+      const targetIndex = rng ? rng.range(0, count - 1) : RandomUtil.int(0, count - 1);
+      const objects: GameObject[] = [];
+
+      for (let i = 0; i < count; i++) {
+        const shape = i === targetIndex ? targetShape : shuffledShapes[(i + 1) % shuffledShapes.length];
+        const color = rng ? rng.choice(COLOR_KEYS) : RandomUtil.choice(COLOR_KEYS);
+        objects.push({
+          id: `obj_${i}`,
+          shape,
+          color,
+          size: 'medium',
+          position: positions[i],
+          movement: level >= 10 && i % 2 === 0 ? 'pulse' : 'none',
+          spawnDelayMs: 0,
+          spawnOrder: i,
+        });
+      }
+
+      const shapeName = SHAPE_DISPLAY_NAMES[targetShape] || targetShape.toUpperCase();
+      return {
+        id,
+        type: 'SHAPE',
+        instruction: `FIND THE ${shapeName}`,
+        subInstruction: `Question ${questionIndex}/10`,
+        highlightColor: '#00F0FF',
+        objects,
+        validTargetIds: [objects[targetIndex].id],
+        isNoTapChallenge: false,
+        timeLimitSeconds: timeLimit,
+        difficultyLevel: level,
+        createdAt: Date.now(),
+      };
+    } else {
+      // Position challenge
+      const count = Math.min(5, 4 + (level >= 8 ? 1 : 0));
+      const isLinear = (rng ? rng.range(0, 1) : RandomUtil.int(0, 1)) === 0;
+      const positions = LayoutEngine.getBalancedPositions(count, isLinear ? 'row' : 'quadrant');
+      const objects: GameObject[] = [];
+
+      for (let i = 0; i < count; i++) {
+        const shape = rng ? rng.choice(GEOMETRIC_SHAPES) : RandomUtil.choice(GEOMETRIC_SHAPES);
+        const color = rng ? rng.choice(COLOR_KEYS) : RandomUtil.choice(COLOR_KEYS);
+        objects.push({
+          id: `obj_${i}`,
+          shape,
+          color,
+          size: 'medium',
           position: positions[i],
           movement: 'none',
           spawnDelayMs: 0,
           spawnOrder: i,
         });
       }
-    } else if (level === 2) {
-      // Level 2: More Colors (3-4 objects, 3-4 colors)
-      const shuffled = rng ? rng.shuffle(primaryColors.concat(['orange', 'purple'])) : RandomUtil.shuffle(primaryColors.concat(['orange', 'purple']));
-      targetColor = shuffled[0];
-      distractorColors = shuffled.slice(1);
-      const baseShape = rng ? rng.choice(SHAPE_KEYS) : RandomUtil.choice(SHAPE_KEYS);
 
-      for (let i = 0; i < count; i++) {
-        const color = i === targetIndex ? targetColor : distractorColors[(i - 1 + distractorColors.length) % distractorColors.length];
-        objects.push({
-          id: `obj_${i}`,
-          shape: baseShape,
-          color,
-          size: 'medium',
-          position: positions[i],
-          movement: 'none',
-          spawnDelayMs: diff.spawnStaggerMs * i,
-          spawnOrder: i,
-        });
+      let instruction: string;
+      let targetObj = objects[0];
+
+      if (isLinear) {
+        const isLeft = (rng ? rng.range(0, 1) : RandomUtil.int(0, 1)) === 0;
+        instruction = isLeft ? 'SELECT THE LEFTMOST OBJECT' : 'SELECT THE RIGHTMOST OBJECT';
+        for (const obj of objects) {
+          if (isLeft ? obj.position.x < targetObj.position.x : obj.position.x > targetObj.position.x) {
+            targetObj = obj;
+          }
+        }
+      } else {
+        const quad = rng ? rng.choice(['TOP-LEFT', 'TOP-RIGHT', 'BOTTOM-LEFT', 'BOTTOM-RIGHT'] as const) : RandomUtil.choice(['TOP-LEFT', 'TOP-RIGHT', 'BOTTOM-LEFT', 'BOTTOM-RIGHT'] as const);
+        instruction = `SELECT THE ${quad} OBJECT`;
+
+        if (quad === 'TOP-LEFT') {
+          let minScore = Infinity;
+          for (const obj of objects) {
+            const score = obj.position.x + obj.position.y;
+            if (score < minScore) { minScore = score; targetObj = obj; }
+          }
+        } else if (quad === 'TOP-RIGHT') {
+          let maxScore = -Infinity;
+          for (const obj of objects) {
+            const score = obj.position.x - obj.position.y;
+            if (score > maxScore) { maxScore = score; targetObj = obj; }
+          }
+        } else if (quad === 'BOTTOM-LEFT') {
+          let minScore = Infinity;
+          for (const obj of objects) {
+            const score = obj.position.x - obj.position.y;
+            if (score < minScore) { minScore = score; targetObj = obj; }
+          }
+        } else {
+          let maxScore = -Infinity;
+          for (const obj of objects) {
+            const score = obj.position.x + obj.position.y;
+            if (score > maxScore) { maxScore = score; targetObj = obj; }
+          }
+        }
       }
-    } else if (level === 3) {
-      // Level 3: Similar Colors (e.g. Blue/Cyan, Green/Lime, Red/Pink, Orange/Amber/Yellow)
-      const similarPairs: Array<[GameColorName, GameColorName]> = [
-        ['blue', 'cyan'],
-        ['green', 'lime'],
-        ['red', 'pink'],
-        ['yellow', 'amber'],
-        ['orange', 'amber'],
-        ['purple', 'blue'],
-      ];
-      const chosenPair = rng ? rng.choice(similarPairs) : RandomUtil.choice(similarPairs);
-      targetColor = chosenPair[0];
-      const similarColor = chosenPair[1];
-      const baseShape = rng ? rng.choice(SHAPE_KEYS) : RandomUtil.choice(SHAPE_KEYS);
 
-      for (let i = 0; i < count; i++) {
-        const isTarget = i === targetIndex;
-        objects.push({
-          id: `obj_${i}`,
-          shape: baseShape,
-          color: isTarget ? targetColor : similarColor,
-          size: 'medium',
-          position: positions[i],
-          movement: 'none',
-          spawnDelayMs: diff.spawnStaggerMs * i,
-          spawnOrder: i,
-        });
-      }
-    } else if (level === 4) {
-      // Level 4: Color + Distractors (5-7 objects, multiple colors)
-      const shuffled = rng ? rng.shuffle(allColors) : RandomUtil.shuffle(allColors);
-      targetColor = shuffled[0];
-      distractorColors = shuffled.slice(1);
-      const baseShape = rng ? rng.choice(SHAPE_KEYS) : RandomUtil.choice(SHAPE_KEYS);
-
-      for (let i = 0; i < count; i++) {
-        const color = i === targetIndex ? targetColor : (rng ? rng.choice(distractorColors) : RandomUtil.choice(distractorColors));
-        objects.push({
-          id: `obj_${i}`,
-          shape: baseShape,
-          color,
-          size: 'medium',
-          position: positions[i],
-          movement: 'none',
-          spawnDelayMs: diff.spawnStaggerMs * i,
-          spawnOrder: i,
-        });
-      }
-    } else {
-      // Level 5: Advanced Color Recognition (6-8 objects, varying shapes and sizes)
-      const shuffled = rng ? rng.shuffle(allColors) : RandomUtil.shuffle(allColors);
-      targetColor = shuffled[0];
-      distractorColors = shuffled.slice(1);
-      const sizes: Array<'small' | 'medium' | 'large'> = ['small', 'medium', 'large'];
-
-      for (let i = 0; i < count; i++) {
-        const isTarget = i === targetIndex;
-        const color = isTarget ? targetColor : (rng ? rng.choice(distractorColors) : RandomUtil.choice(distractorColors));
-        const shape = rng ? rng.choice(SHAPE_KEYS) : RandomUtil.choice(SHAPE_KEYS);
-        const size = rng ? rng.choice(sizes) : RandomUtil.choice(sizes);
-
-        objects.push({
-          id: `obj_${i}`,
-          shape,
-          color,
-          size,
-          position: positions[i],
-          movement: 'none',
-          spawnDelayMs: diff.spawnStaggerMs * i,
-          spawnOrder: i,
-        });
-      }
+      return {
+        id,
+        type: 'POSITION',
+        instruction,
+        subInstruction: `Question ${questionIndex}/10`,
+        highlightColor: '#FFDE59',
+        objects,
+        validTargetIds: [targetObj.id],
+        isNoTapChallenge: false,
+        timeLimitSeconds: timeLimit,
+        difficultyLevel: level,
+        createdAt: Date.now(),
+      };
     }
-
-    const instruction = `TAP THE ${targetColor.toUpperCase()} OBJECT`;
-    const targetObj = objects[targetIndex];
-
-    return {
-      id,
-      type: 'COLOR',
-      instruction,
-      subInstruction: `Find the ${targetColor.toUpperCase()} target`,
-      highlightColor: GAME_COLORS[targetColor]?.hex || '#FFFFFF',
-      objects,
-      validTargetIds: [targetObj.id],
-      isNoTapChallenge: false,
-      timeLimitSeconds: diff.timeLimitSeconds,
-      difficultyLevel: diff.level,
-      createdAt: Date.now(),
-    };
   }
 
   // =========================================================================
-  // LEVELS 6–10: ODD-ONE-OUT / ODD SHAPE
+  // 3. EXTREME GENIUS CATEGORY GENERATOR (LEVELS 1–6 • 15 RAPID-FIRE WORD Qs)
   // =========================================================================
-  private static generateOddOneOut(
+  private static buildExtremeChallenge(
     level: number,
-    id: string,
-    diff: DifficultyConfig,
+    questionIndex: number,
     rng: SeededRandom | null
   ): Challenge {
-    const count = diff.objectCount;
-    const positions = LayoutEngine.getBalancedPositions(count, 'grid');
-    const targetIndex = rng ? rng.range(0, count - 1) : RandomUtil.int(0, count - 1);
-    const objects: GameObject[] = [];
+    const id = `ch_ext_lvl${level}_q${questionIndex}_${Math.random().toString(36).substring(2, 7)}`;
+    const timeLimit = Math.max(1.2, 2.2 - (level - 1) * 0.15 - (questionIndex - 1) * 0.03);
 
-    let instruction = 'SELECT THE ODD ONE';
-    let subInstruction = 'Identify the object that is different';
+    // Pick 1 visual shape to display
+    const shuffledShapes = rng ? rng.shuffle([...GEOMETRIC_SHAPES]) : RandomUtil.shuffle([...GEOMETRIC_SHAPES]);
+    const targetShape = shuffledShapes[0];
+    const distractorShapes = shuffledShapes.slice(1, 4); // 3 distractors
 
-    if (level === 6) {
-      // Level 6: Simple Odd One Out (4 objects, obvious difference: shape, color, or size)
-      const mode = rng ? rng.range(0, 2) : RandomUtil.int(0, 2);
-      const baseColor = rng ? rng.choice(COLOR_KEYS) : RandomUtil.choice(COLOR_KEYS);
-      const baseShape = rng ? rng.choice(SHAPE_KEYS) : RandomUtil.choice(SHAPE_KEYS);
+    // Word options: exactly 4 word names
+    const correctWord = SHAPE_DISPLAY_NAMES[targetShape] || targetShape.toUpperCase();
+    const distractorWords = distractorShapes.map((s) => SHAPE_DISPLAY_NAMES[s] || s.toUpperCase());
+    const allOptions = rng ? rng.shuffle([correctWord, ...distractorWords]) : RandomUtil.shuffle([correctWord, ...distractorWords]);
 
-      if (mode === 0) {
-        // Shape difference (e.g. 3 circles + 1 square)
-        const oddShape = rng ? rng.choice(SHAPE_KEYS.filter((s) => s !== baseShape)) : RandomUtil.choice(SHAPE_KEYS.filter((s) => s !== baseShape));
-        for (let i = 0; i < count; i++) {
-          objects.push({
-            id: `obj_${i}`,
-            shape: i === targetIndex ? oddShape : baseShape,
-            color: baseColor,
-            size: 'large',
-            position: positions[i],
-            movement: 'none',
-            spawnDelayMs: 0,
-            spawnOrder: i,
-          });
-        }
-      } else if (mode === 1) {
-        // Color difference (e.g. 3 red + 1 blue)
-        const oddColor = rng ? rng.choice(COLOR_KEYS.filter((c) => c !== baseColor)) : RandomUtil.choice(COLOR_KEYS.filter((c) => c !== baseColor));
-        for (let i = 0; i < count; i++) {
-          objects.push({
-            id: `obj_${i}`,
-            shape: baseShape,
-            color: i === targetIndex ? oddColor : baseColor,
-            size: 'large',
-            position: positions[i],
-            movement: 'none',
-            spawnDelayMs: 0,
-            spawnOrder: i,
-          });
-        }
-      } else {
-        // Size difference (e.g. 3 medium + 1 large)
-        for (let i = 0; i < count; i++) {
-          objects.push({
-            id: `obj_${i}`,
-            shape: baseShape,
-            color: baseColor,
-            size: i === targetIndex ? 'large' : 'small',
-            position: positions[i],
-            movement: 'none',
-            spawnDelayMs: 0,
-            spawnOrder: i,
-          });
-        }
-      }
-      instruction = 'SELECT THE ODD ONE';
-    } else if (level === 7) {
-      // Level 7: Shape Odd One Out (5 objects, same color, shape is the difference)
-      const baseColor = rng ? rng.choice(COLOR_KEYS) : RandomUtil.choice(COLOR_KEYS);
-      const baseShape = rng ? rng.choice(SHAPE_KEYS) : RandomUtil.choice(SHAPE_KEYS);
-      const oddShape = rng ? rng.choice(SHAPE_KEYS.filter((s) => s !== baseShape)) : RandomUtil.choice(SHAPE_KEYS.filter((s) => s !== baseShape));
-
-      for (let i = 0; i < count; i++) {
-        objects.push({
-          id: `obj_${i}`,
-          shape: i === targetIndex ? oddShape : baseShape,
-          color: baseColor,
-          size: 'medium',
-          position: positions[i],
-          movement: 'none',
-          spawnDelayMs: diff.spawnStaggerMs * i,
-          spawnOrder: i,
-        });
-      }
-      instruction = 'SELECT THE ODD SHAPE';
-      subInstruction = 'Find the shape that does not match';
-    } else if (level === 8) {
-      // Level 8: Subtle Shape Difference (e.g. Triangle vs Diamond or Square vs Diamond)
-      const subtlePairs: Array<[ShapeType, ShapeType]> = [
-        ['triangle', 'diamond'],
-        ['square', 'diamond'],
-        ['circle', 'triangle'],
-        ['star', 'triangle'],
-      ];
-      const pair = rng ? rng.choice(subtlePairs) : RandomUtil.choice(subtlePairs);
-      const baseShape = pair[0];
-      const oddShape = pair[1];
-      const baseColor = rng ? rng.choice(COLOR_KEYS) : RandomUtil.choice(COLOR_KEYS);
-
-      for (let i = 0; i < count; i++) {
-        objects.push({
-          id: `obj_${i}`,
-          shape: i === targetIndex ? oddShape : baseShape,
-          color: baseColor,
-          size: 'medium',
-          position: positions[i],
-          movement: 'none',
-          spawnDelayMs: diff.spawnStaggerMs * i,
-          spawnOrder: i,
-        });
-      }
-      instruction = 'SELECT THE ODD SHAPE';
-      subInstruction = 'Look closely at the shapes';
-    } else if (level === 9) {
-      // Level 9: Multiple Visual Distractors with unambiguous target
-      const focusOnShape = rng ? rng.range(0, 1) === 0 : RandomUtil.int(0, 1) === 0;
-
-      if (focusOnShape) {
-        // Shapes: N-1 identical base shape, 1 odd shape. Colors randomized across all objects.
-        const baseShape = rng ? rng.choice(SHAPE_KEYS) : RandomUtil.choice(SHAPE_KEYS);
-        const oddShape = rng ? rng.choice(SHAPE_KEYS.filter((s) => s !== baseShape)) : RandomUtil.choice(SHAPE_KEYS.filter((s) => s !== baseShape));
-
-        for (let i = 0; i < count; i++) {
-          const color = rng ? rng.choice(COLOR_KEYS) : RandomUtil.choice(COLOR_KEYS);
-          objects.push({
-            id: `obj_${i}`,
-            shape: i === targetIndex ? oddShape : baseShape,
-            color,
-            size: 'medium',
-            position: positions[i],
-            movement: 'none',
-            spawnDelayMs: diff.spawnStaggerMs * i,
-            spawnOrder: i,
-          });
-        }
-        instruction = 'SELECT THE ODD SHAPE';
-        subInstruction = 'Ignore colors — focus only on shape';
-      } else {
-        // Colors: N-1 identical base color, 1 odd color. Shapes randomized across all objects.
-        const baseColor = rng ? rng.choice(COLOR_KEYS) : RandomUtil.choice(COLOR_KEYS);
-        const oddColor = rng ? rng.choice(COLOR_KEYS.filter((c) => c !== baseColor)) : RandomUtil.choice(COLOR_KEYS.filter((c) => c !== baseColor));
-
-        for (let i = 0; i < count; i++) {
-          const shape = rng ? rng.choice(SHAPE_KEYS) : RandomUtil.choice(SHAPE_KEYS);
-          objects.push({
-            id: `obj_${i}`,
-            shape,
-            color: i === targetIndex ? oddColor : baseColor,
-            size: 'medium',
-            position: positions[i],
-            movement: 'none',
-            spawnDelayMs: diff.spawnStaggerMs * i,
-            spawnOrder: i,
-          });
-        }
-        instruction = 'SELECT THE ODD COLOR';
-        subInstruction = 'Ignore shapes — focus only on color';
-      }
-    } else {
-      // Level 10: Advanced Odd One Out (6-8 objects, subtle differences)
-      const baseShape = rng ? rng.choice(SHAPE_KEYS) : RandomUtil.choice(SHAPE_KEYS);
-      const oddShape = rng ? rng.choice(SHAPE_KEYS.filter((s) => s !== baseShape)) : RandomUtil.choice(SHAPE_KEYS.filter((s) => s !== baseShape));
-      const baseColor = rng ? rng.choice(COLOR_KEYS) : RandomUtil.choice(COLOR_KEYS);
-      const sizes: Array<'small' | 'medium' | 'large'> = ['small', 'medium', 'large'];
-
-      for (let i = 0; i < count; i++) {
-        const size = rng ? rng.choice(sizes) : RandomUtil.choice(sizes);
-        objects.push({
-          id: `obj_${i}`,
-          shape: i === targetIndex ? oddShape : baseShape,
-          color: baseColor,
-          size,
-          position: positions[i],
-          movement: 'none',
-          spawnDelayMs: diff.spawnStaggerMs * i,
-          spawnOrder: i,
-        });
-      }
-      instruction = 'SELECT THE ODD SHAPE';
-      subInstruction = 'Find the unique shape';
-    }
-
-    const targetObj = objects[targetIndex];
+    // Single centered shape in arena
+    const singleColor = rng ? rng.choice(COLOR_KEYS) : RandomUtil.choice(COLOR_KEYS);
+    const objects: GameObject[] = [
+      {
+        id: 'obj_shape_main',
+        shape: targetShape,
+        color: singleColor,
+        size: 'large',
+        position: { x: 50, y: 46 },
+        movement: level >= 4 ? 'pulse' : 'none',
+        spawnDelayMs: 0,
+        spawnOrder: 0,
+      },
+    ];
 
     return {
       id,
-      type: 'ODD_ONE',
-      instruction,
-      subInstruction,
-      highlightColor: '#00F0FF',
+      type: 'EXTREME_WORD',
+      instruction: 'WHAT SHAPE IS THIS?',
+      subInstruction: `Question ${questionIndex}/15`,
+      highlightColor: '#FF2E63',
       objects,
-      validTargetIds: [targetObj.id],
+      options: allOptions,
+      correctWordAnswer: correctWord,
+      validTargetIds: ['obj_shape_main'],
       isNoTapChallenge: false,
-      timeLimitSeconds: diff.timeLimitSeconds,
-      difficultyLevel: diff.level,
-      createdAt: Date.now(),
-    };
-  }
-
-  // =========================================================================
-  // LEVEL 11 ONWARD: POSITION DETECTION (LEFTMOST / RIGHTMOST)
-  // =========================================================================
-  private static generatePositionDetection(
-    level: number,
-    id: string,
-    diff: DifficultyConfig,
-    rng: SeededRandom | null
-  ): Challenge {
-    const count = diff.objectCount;
-    // Guaranteed strictly equal horizontal spacing in a clean row
-    const positions = LayoutEngine.getBalancedPositions(count, 'row');
-    const objects: GameObject[] = [];
-
-    let isLeftmost: boolean;
-    if (level === 11) {
-      isLeftmost = true;
-    } else if (level === 12) {
-      isLeftmost = false;
-    } else {
-      isLeftmost = rng ? rng.range(0, 1) === 0 : RandomUtil.int(0, 1) === 0;
-    }
-
-    for (let i = 0; i < count; i++) {
-      const shape = level <= 13 ? 'circle' : (rng ? rng.choice(SHAPE_KEYS) : RandomUtil.choice(SHAPE_KEYS));
-      const color = level <= 13 ? (rng ? rng.choice(COLOR_KEYS) : RandomUtil.choice(COLOR_KEYS)) : (rng ? rng.choice(COLOR_KEYS) : RandomUtil.choice(COLOR_KEYS));
-      const size = level <= 13 ? 'large' : (rng ? rng.choice(['small', 'medium', 'large'] as const) : RandomUtil.choice(['small', 'medium', 'large'] as const));
-
-      objects.push({
-        id: `obj_${i}`,
-        shape,
-        color,
-        size,
-        position: positions[i],
-        movement: diff.allowMovement && i % 2 === 1 ? 'pulse' : 'none',
-        spawnDelayMs: diff.spawnStaggerMs * i,
-        spawnOrder: i,
-      });
-    }
-
-    // Accurate calculation of leftmost / rightmost from actual center X coordinates
-    let targetObj = objects[0];
-    for (let i = 1; i < objects.length; i++) {
-      if (isLeftmost) {
-        if (objects[i].position.x < targetObj.position.x) {
-          targetObj = objects[i];
-        }
-      } else {
-        if (objects[i].position.x > targetObj.position.x) {
-          targetObj = objects[i];
-        }
-      }
-    }
-
-    let instruction: string;
-    let subInstruction: string;
-
-    if (level === 11) {
-      instruction = 'SELECT THE LEFTMOST OBJECT';
-      subInstruction = 'Tap the object furthest to the left';
-    } else if (level === 12) {
-      instruction = 'SELECT THE RIGHTMOST OBJECT';
-      subInstruction = 'Tap the object furthest to the right';
-    } else if (level <= 14) {
-      instruction = isLeftmost ? 'SELECT THE LEFTMOST OBJECT' : 'SELECT THE RIGHTMOST OBJECT';
-      subInstruction = isLeftmost ? 'Furthest left' : 'Furthest right';
-    } else {
-      const phrases = isLeftmost
-        ? ['SELECT THE LEFTMOST SHAPE', 'TAP THE LEFTMOST SYMBOL', 'SELECT THE LEFTMOST OBJECT']
-        : ['SELECT THE RIGHTMOST SHAPE', 'TAP THE RIGHTMOST SYMBOL', 'SELECT THE RIGHTMOST OBJECT'];
-      instruction = rng ? rng.choice(phrases) : RandomUtil.choice(phrases);
-      subInstruction = isLeftmost ? 'Furthest left on screen' : 'Furthest right on screen';
-    }
-
-    return {
-      id,
-      type: 'POSITION',
-      instruction,
-      subInstruction,
-      highlightColor: isLeftmost ? '#08D9D6' : '#FF9F1C',
-      objects,
-      validTargetIds: [targetObj.id],
-      isNoTapChallenge: false,
-      timeLimitSeconds: diff.timeLimitSeconds,
-      difficultyLevel: diff.level,
+      timeLimitSeconds: timeLimit,
+      difficultyLevel: level,
       createdAt: Date.now(),
     };
   }
@@ -493,8 +671,12 @@ export class ChallengeGenerator {
   // =========================================================================
   // SAFETY FALLBACK
   // =========================================================================
-  private static buildFallbackChallenge(diff: DifficultyConfig): Challenge {
-    const id = `ch_fb_${diff.level}_${Date.now()}`;
+  private static buildFallbackChallenge(
+    category: CategoryId,
+    level: number,
+    questionIndex = 1
+  ): Challenge {
+    const id = `ch_fb_${category}_lvl${level}_q${questionIndex}_${Date.now()}`;
     const positions = LayoutEngine.getBalancedPositions(2, 'row');
     const objects: GameObject[] = [
       {
@@ -522,14 +704,18 @@ export class ChallengeGenerator {
     return {
       id,
       type: 'COLOR',
+      category,
+      level,
+      questionIndex,
+      totalQuestions: CATEGORIES_CONFIG[category]?.questionsPerLevel || 1,
       instruction: 'TAP THE RED OBJECT',
       subInstruction: 'Tap the red circle',
       highlightColor: '#FF2E63',
       objects,
       validTargetIds: ['obj_0'],
       isNoTapChallenge: false,
-      timeLimitSeconds: diff.timeLimitSeconds || 5.0,
-      difficultyLevel: diff.level,
+      timeLimitSeconds: 4.0,
+      difficultyLevel: level,
       createdAt: Date.now(),
     };
   }

@@ -243,6 +243,44 @@ class SoundEngine {
   }
 
   /**
+   * Joyful celebration chime for completing a level
+   */
+  public playLevelUp() {
+    if (!this.isSoundEnabled) return;
+    this.initContext();
+    if (!this.ctx) return;
+
+    try {
+      const melody = [
+        { f: 523.25, t: 0.00, d: 0.1 }, // C5
+        { f: 659.25, t: 0.1, d: 0.1 },  // E5
+        { f: 783.99, t: 0.2, d: 0.1 },  // G5
+        { f: 1046.50, t: 0.3, d: 0.25 }, // C6
+      ];
+
+      melody.forEach((n) => {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(n.f, this.ctx.currentTime + n.t);
+
+        gain.gain.setValueAtTime(0.2, this.ctx.currentTime + n.t);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + n.t + n.d);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(this.ctx.currentTime + n.t);
+        osc.stop(this.ctx.currentTime + n.t + n.d);
+      });
+    } catch {
+      // Safe fallback
+    }
+  }
+
+  /**
    * Cash / Gem chime for shop purchase & daily claim
    */
   public playPurchaseSuccess() {
